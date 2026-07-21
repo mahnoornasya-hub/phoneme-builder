@@ -2,21 +2,39 @@
 
 import { useState } from "react";
 
+type TileStatus = "correct" | "present" | "incorrect" | "empty";
+
 export default function WordlePage() {
-  const [phonemeWord, setPhonemeWord] = useState("/θɪŋ/");
+  const [phonemeWord, setPhonemeWord] = useState("/θ/ /ɪ/ /ŋ/");
   const [englishWord, setEnglishWord] = useState("Thing");
   const [difficulty, setDifficulty] = useState("Easy");
   const [hint, setHint] = useState("TH as in thin");
   const [numberOfGuesses, setNumberOfGuesses] = useState(6);
   const [showHints, setShowHints] = useState(true);
+
   const [previewMessage, setPreviewMessage] = useState(
     "The preview updates automatically as you change the settings.",
   );
 
+  const [currentGuess, setCurrentGuess] = useState<string[]>([]);
+  const [submittedGuesses, setSubmittedGuesses] = useState<string[][]>([]);
+  const [gameFinished, setGameFinished] = useState(false);
+
+  const phonemeKeyboard = [
+    { symbol: "/θ/", label: "TH", example: "TH as in thin" },
+    { symbol: "/ɪ/", label: "I", example: "I as in sit" },
+    { symbol: "/ŋ/", label: "NG", example: "NG as in sing" },
+    { symbol: "/ʃ/", label: "SH", example: "SH as in ship" },
+    { symbol: "/tʃ/", label: "CH", example: "CH as in chip" },
+    { symbol: "/f/", label: "F", example: "F as in fish" },
+    { symbol: "/k/", label: "K", example: "K as in cat" },
+    { symbol: "/æ/", label: "A", example: "A as in cat" },
+  ];
+
   /*
-   * Supports either:
+   * Supports:
    * /θɪŋ/
-   * or individually separated phonemes such as:
+   * or individually separated phonemes:
    * /θ/ /ɪ/ /ŋ/
    */
   function getPreviewPhonemes(value: string): string[] {
@@ -26,33 +44,207 @@ export default function WordlePage() {
       return individualPhonemes;
     }
 
-    const cleanedWord = value.replaceAll("/", "").trim();
+    const cleanedWord = value.replaceAll("/", "").replaceAll(" ", "").trim();
 
     if (!cleanedWord) {
       return ["?"];
     }
 
-    return Array.from(cleanedWord);
+    return Array.from(cleanedWord).map((symbol) => `/${symbol}/`);
   }
 
   const previewPhonemes = getPreviewPhonemes(phonemeWord);
   const previewRows = numberOfGuesses;
   const previewColumns = previewPhonemes.length;
 
+  function resetGame(message?: string) {
+    setCurrentGuess([]);
+    setSubmittedGuesses([]);
+    setGameFinished(false);
+
+    if (message) {
+      setPreviewMessage(message);
+    }
+  }
+
+  function handlePhonemeWordChange(value: string) {
+    setPhonemeWord(value);
+    resetGame("The target word changed. The preview game has been reset.");
+  }
+
+  function handleNumberOfGuessesChange(value: number) {
+    setNumberOfGuesses(value);
+    resetGame("The number of guesses changed. The preview game has been reset.");
+  }
+
   function handleGeneratePreview() {
     if (!phonemeWord.trim()) {
-      setPreviewMessage("Please enter a phoneme word.");
+    setPreviewMessage("Please enter a phoneme word.");
+    return;
+  }
+
+  if (!englishWord.trim()) {
+    setPreviewMessage("Please enter the English equivalence.");
+    return;
+  }
+
+  const phonemes = phonemeWord.match(/\/[^/]+\//g);
+
+  if (!phonemes || phonemes.length === 0) {
+    setPreviewMessage(
+      "Please enter phonemes like /θ/ /ɪ/ /ŋ/ instead of normal English."
+    );
+    return;
+  }
+
+  resetGame(
+    `Preview generated for ${phonemeWord} — ${englishWord}.`
+  );
+  }
+
+  function handleKeyboardClick(phoneme: string) {
+    if (gameFinished) {
+      setPreviewMessage(
+        "The preview game has finished. Select Generate Preview to restart.",
+      );
       return;
     }
 
-    if (!englishWord.trim()) {
-      setPreviewMessage("Please enter the English equivalence.");
+    if (submittedGuesses.length >= previewRows) {
+      setPreviewMessage("No guesses remain.");
       return;
     }
+
+    if (currentGuess.length >= previewColumns) {
+      setPreviewMessage(
+        `This word contains ${previewColumns} phonemes. Press Enter Guess or Clear.`,
+      );
+      return;
+    }
+
+    const updatedGuess = [...currentGuess, phoneme];
+
+    setCurrentGuess(updatedGuess);
+    setPreviewMessage(
+      `${updatedGuess.length} of ${previewColumns} phonemes selected.`,
+    );
+  }
+
+  function handleClear() {
+    if (gameFinished) {
+      setPreviewMessage(
+        "The preview game has finished. Select Generate Preview to restart.",
+      );
+      return;
+    }
+
+    setCurrentGuess([]);
+    setPreviewMessage("The current guess has been cleared.");
+  }
+
+  function handleEnterGuess() {
+    if (gameFinished) {
+      setPreviewMessage(
+        "The preview game has finished. Select Generate Preview to restart.",
+      );
+      return;
+    }
+
+    if (currentGuess.length !== previewColumns) {
+      setPreviewMessage(
+        `Please select exactly ${previewColumns} phonemes before submitting.`,
+      );
+      return;
+    }
+
+    const submittedGuess = [...currentGuess];
+    const updatedGuesses = [...submittedGuesses, submittedGuess];
+
+    setSubmittedGuesses(updatedGuesses);
+    setCurrentGuess([]);
+
+    const isCorrect = submittedGuess.every(
+      (phoneme, index) => phoneme === previewPhonemes[index],
+    );
+
+    if (isCorrect) {
+      setGameFinished(true);
+      setPreviewMessage(
+        `Correct! ${phonemeWord} is the English word “${englishWord}”.`,
+      );
+      return;
+    }
+
+    if (updatedGuesses.length >= previewRows) {
+      setGameFinished(true);
+      setPreviewMessage(
+        `No guesses remain. The correct answer was ${phonemeWord} — ${englishWord}.`,
+      );
+      return;
+    }
+
+    const guessesRemaining = previewRows - updatedGuesses.length;
 
     setPreviewMessage(
-      `Preview generated for ${phonemeWord} — ${englishWord}.`,
+      `Guess submitted. ${guessesRemaining} ${
+        guessesRemaining === 1 ? "guess" : "guesses"
+      } remaining.`,
     );
+  }
+
+  function getTileStatus(
+    guess: string[],
+    columnIndex: number,
+  ): TileStatus {
+    const selectedPhoneme = guess[columnIndex];
+
+    if (!selectedPhoneme) {
+      return "empty";
+    }
+
+    if (selectedPhoneme === previewPhonemes[columnIndex]) {
+      return "correct";
+    }
+
+    if (previewPhonemes.includes(selectedPhoneme)) {
+      return "present";
+    }
+
+    return "incorrect";
+  }
+
+  function getTileClasses(status: TileStatus): string {
+    const baseClasses =
+      "grid h-12 w-12 place-items-center rounded-md border-2 px-1 text-center text-sm font-bold transition";
+
+    if (status === "correct") {
+      return `${baseClasses} border-green-600 bg-green-600 text-white`;
+    }
+
+    if (status === "present") {
+      return `${baseClasses} border-amber-500 bg-amber-500 text-white`;
+    }
+
+    if (status === "incorrect") {
+      return `${baseClasses} border-slate-500 bg-slate-500 text-white`;
+    }
+
+    return `${baseClasses} border-slate-300 bg-white text-slate-900`;
+  }
+
+  function getTileValue(
+    rowIndex: number,
+    columnIndex: number,
+  ): string {
+    if (submittedGuesses[rowIndex]) {
+      return submittedGuesses[rowIndex][columnIndex] ?? "";
+    }
+
+    if (rowIndex === submittedGuesses.length) {
+      return currentGuess[columnIndex] ?? "";
+    }
+
+    return "";
   }
 
   return (
@@ -95,14 +287,15 @@ export default function WordlePage() {
                 id="phoneme-word"
                 type="text"
                 value={phonemeWord}
-                onChange={(event) => setPhonemeWord(event.target.value)}
-                placeholder="/θɪŋ/"
+                onChange={(event) =>
+                  handlePhonemeWordChange(event.target.value)
+                }
+                placeholder="/θ/ /ɪ/ /ŋ/"
                 className="w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
 
               <p className="mt-2 text-sm text-slate-500">
-                Enter the word using phoneme symbols, for example /θɪŋ/ or
-                /θ/ /ɪ/ /ŋ/.
+                Enter each phoneme separately. Example: /θ/ /ɪ/ /ŋ/
               </p>
             </div>
 
@@ -174,7 +367,7 @@ export default function WordlePage() {
                 id="number-of-guesses"
                 value={numberOfGuesses}
                 onChange={(event) =>
-                  setNumberOfGuesses(Number(event.target.value))
+                  handleNumberOfGuessesChange(Number(event.target.value))
                 }
                 className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               >
@@ -264,30 +457,54 @@ export default function WordlePage() {
                   className="flex min-w-max justify-center gap-2"
                 >
                   {Array.from({ length: previewColumns }).map(
-                    (_, columnIndex) => (
-                      <div
-                        key={columnIndex}
-                        className="grid h-12 w-12 place-items-center rounded-md border-2 border-slate-300 bg-white px-1 text-center text-sm font-bold text-slate-900"
-                      >
-                        {rowIndex === 0
-                          ? previewPhonemes[columnIndex]
-                          : ""}
-                      </div>
-                    ),
+                    (_, columnIndex) => {
+                      const guess = submittedGuesses[rowIndex];
+                      const status = guess
+                        ? getTileStatus(guess, columnIndex)
+                        : "empty";
+
+                      return (
+                        <div
+                          key={columnIndex}
+                          className={getTileClasses(status)}
+                        >
+                          {getTileValue(rowIndex, columnIndex)}
+                        </div>
+                      );
+                    },
                   )}
                 </div>
               ))}
             </div>
 
-            <div className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
-              <p className="text-sm font-medium text-slate-500">
-                Correct English equivalence
-              </p>
+            <div className="mt-5 flex flex-wrap justify-center gap-4 text-xs font-medium text-slate-600">
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 rounded bg-green-600" />
+                Correct Position
+              </span>
 
-              <p className="mt-1 text-lg font-bold text-slate-900">
-                {englishWord.trim() || "Not entered"}
-              </p>
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 rounded bg-amber-500" />
+                Included Elsewhere
+              </span>
+
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 rounded bg-slate-500" />
+                Not Included
+              </span>
             </div>
+
+            {gameFinished && (
+              <div className="mt-6 rounded-lg border border-green-200 bg-green-50 p-4 text-center">
+                <p className="font-semibold text-green-800">
+                  Answer: {phonemeWord}
+                </p>
+
+                <p className="mt-1 text-sm text-green-700">
+                  English equivalence: {englishWord}
+                </p>
+              </div>
+            )}
 
             {showHints && (
               <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-4">
@@ -307,32 +524,42 @@ export default function WordlePage() {
               </p>
 
               <div className="flex flex-wrap gap-2">
-                {["/θ/", "/ɪ/", "/ŋ/", "/ʃ/", "/tʃ/", "/f/", "/k/", "/æ/"].map(
-                  (phoneme) => (
-                    <button
-                      key={phoneme}
-                      type="button"
-                      title={`${phoneme} phoneme sound`}
-                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-900 transition hover:border-blue-500 hover:bg-blue-50"
-                    >
-                      {phoneme}
-                    </button>
-                  ),
-                )}
+                {phonemeKeyboard.map((phoneme) => (
+                  <button
+                    key={phoneme.symbol}
+                    type="button"
+                    title={phoneme.example}
+                    aria-label={`${phoneme.symbol}, ${phoneme.example}`}
+                    onClick={() =>
+                      handleKeyboardClick(phoneme.symbol)
+                    }
+                    disabled={gameFinished}
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-900 transition hover:border-blue-500 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span className="block">{phoneme.symbol}</span>
+                    <span className="block text-xs text-slate-500">
+                      {phoneme.label}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-900 transition hover:bg-slate-100"
+                onClick={handleClear}
+                disabled={gameFinished || currentGuess.length === 0}
+                className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Clear
               </button>
 
               <button
                 type="button"
-                className="flex-1 rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-700"
+                onClick={handleEnterGuess}
+                disabled={gameFinished}
+                className="flex-1 rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Enter Guess
               </button>
