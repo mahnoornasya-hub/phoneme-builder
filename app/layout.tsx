@@ -1,3 +1,4 @@
+import PreferencesLoader from "@/components/common/PreferencesLoader";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Layout from "@/components/layout/Layout";
@@ -29,7 +30,8 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Layout>{children}</Layout>
+        <PreferencesLoader />
+<Layout>{children}</Layout>
       </body>
     </html>
   );
