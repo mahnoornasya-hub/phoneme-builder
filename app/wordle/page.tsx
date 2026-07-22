@@ -247,6 +247,444 @@ export default function WordlePage() {
     return "";
   }
 
+  function handleDownloadHtml() {
+    if (!phonemeWord.trim()) {
+      setPreviewMessage("Please enter a phoneme word before downloading.");
+      return;
+    }
+
+    if (!englishWord.trim()) {
+      setPreviewMessage(
+        "Please enter the English equivalence before downloading.",
+      );
+      return;
+    }
+
+    const htmlContent = `<!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Phoneme Wordle</title>
+
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 24px;
+        font-family: Arial, Helvetica, sans-serif;
+        color: #0f172a;
+        background: #f8fafc;
+      }
+
+      main {
+        width: min(720px, 100%);
+        margin: 0 auto;
+        padding: 28px;
+        border: 1px solid #cbd5e1;
+        border-radius: 16px;
+        background: #ffffff;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+      }
+
+      h1 {
+        margin-top: 0;
+        text-align: center;
+      }
+
+      .description {
+        color: #475569;
+        text-align: center;
+      }
+
+      .badge {
+        display: block;
+        width: fit-content;
+        margin: 16px auto;
+        padding: 6px 12px;
+        border-radius: 999px;
+        color: #1d4ed8;
+        background: #dbeafe;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .grid {
+        display: grid;
+        gap: 8px;
+        margin: 28px 0;
+      }
+
+      .row {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .tile {
+        display: grid;
+        width: 56px;
+        height: 56px;
+        place-items: center;
+        border: 2px solid #cbd5e1;
+        border-radius: 8px;
+        background: white;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .correct {
+        color: white;
+        border-color: #16a34a;
+        background: #16a34a;
+      }
+
+      .present {
+        color: white;
+        border-color: #f59e0b;
+        background: #f59e0b;
+      }
+
+      .incorrect {
+        color: white;
+        border-color: #64748b;
+        background: #64748b;
+      }
+
+      .hint {
+        margin-top: 20px;
+        padding: 14px;
+        border: 1px solid #bfdbfe;
+        border-radius: 10px;
+        background: #eff6ff;
+      }
+
+      .keyboard {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 20px;
+      }
+
+      button {
+        min-width: 70px;
+        min-height: 48px;
+        padding: 8px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        color: #0f172a;
+        background: white;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:hover,
+      button:focus-visible {
+        outline: 3px solid #93c5fd;
+        outline-offset: 2px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .actions button {
+        flex: 1;
+      }
+
+      .primary {
+        color: white;
+        border-color: #2563eb;
+        background: #2563eb;
+      }
+
+      .message {
+        margin-top: 18px;
+        padding: 12px;
+        border-radius: 8px;
+        text-align: center;
+        background: #f1f5f9;
+        font-weight: 700;
+      }
+
+      @media (max-width: 520px) {
+        body {
+          padding: 12px;
+        }
+
+        main {
+          padding: 18px 12px;
+        }
+
+        .tile {
+          width: 48px;
+          height: 48px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <main>
+      <h1>Phoneme Wordle</h1>
+
+      <p class="description">
+        Select the phonemes in the correct order and submit your guess.
+      </p>
+
+      <span class="badge">${difficulty}</span>
+
+      <div id="grid" class="grid" aria-label="Phoneme Wordle grid"></div>
+
+      ${
+        showHints
+          ? `<section class="hint">
+               <strong>Hint:</strong> ${hint}
+             </section>`
+          : ""
+      }
+
+      <div id="keyboard" class="keyboard"></div>
+
+      <div class="actions">
+        <button id="clear-button" type="button">Clear</button>
+        <button id="enter-button" class="primary" type="button">
+          Enter Guess
+        </button>
+      </div>
+
+      <p
+        id="message"
+        class="message"
+        role="status"
+        aria-live="polite"
+      >
+        Select your first phoneme.
+      </p>
+    </main>
+
+    <script>
+      const targetPhonemes = ${JSON.stringify(previewPhonemes)};
+      const englishWord = ${JSON.stringify(englishWord)};
+      const maximumGuesses = ${numberOfGuesses};
+
+      const keyboardPhonemes = ${JSON.stringify(
+        phonemeKeyboard.map((item) => ({
+          symbol: item.symbol,
+          label: item.label,
+          example: item.example,
+        })),
+      )};
+
+      let currentGuess = [];
+      let submittedGuesses = [];
+      let gameFinished = false;
+
+      const grid = document.getElementById("grid");
+      const keyboard = document.getElementById("keyboard");
+      const message = document.getElementById("message");
+
+      function getTileStatus(guess, columnIndex) {
+        const selectedPhoneme = guess[columnIndex];
+
+        if (selectedPhoneme === targetPhonemes[columnIndex]) {
+          return "correct";
+        }
+
+        if (targetPhonemes.includes(selectedPhoneme)) {
+          return "present";
+        }
+
+        return "incorrect";
+      }
+
+      function buildGrid() {
+        grid.innerHTML = "";
+
+        for (let rowIndex = 0; rowIndex < maximumGuesses; rowIndex += 1) {
+          const row = document.createElement("div");
+          row.className = "row";
+
+          for (
+            let columnIndex = 0;
+            columnIndex < targetPhonemes.length;
+            columnIndex += 1
+          ) {
+            const tile = document.createElement("span");
+            tile.className = "tile";
+
+            if (submittedGuesses[rowIndex]) {
+              const guess = submittedGuesses[rowIndex];
+              tile.textContent = guess[columnIndex] || "";
+              tile.classList.add(getTileStatus(guess, columnIndex));
+            } else if (rowIndex === submittedGuesses.length) {
+              tile.textContent = currentGuess[columnIndex] || "";
+            }
+
+            row.appendChild(tile);
+          }
+
+          grid.appendChild(row);
+        }
+      }
+
+      function buildKeyboard() {
+        keyboard.innerHTML = "";
+
+        keyboardPhonemes.forEach((phoneme) => {
+          const button = document.createElement("button");
+
+          button.type = "button";
+          button.textContent =
+            phoneme.symbol + " " + phoneme.label;
+
+          button.title = phoneme.example;
+          button.setAttribute(
+            "aria-label",
+            phoneme.symbol + ", " + phoneme.example
+          );
+
+          button.addEventListener("click", () => {
+            if (gameFinished) {
+              return;
+            }
+
+            if (currentGuess.length >= targetPhonemes.length) {
+              message.textContent =
+                "Press Enter Guess or Clear the current row.";
+
+              return;
+            }
+
+            currentGuess.push(phoneme.symbol);
+
+            message.textContent =
+              currentGuess.length +
+              " of " +
+              targetPhonemes.length +
+              " phonemes selected.";
+
+            buildGrid();
+          });
+
+          keyboard.appendChild(button);
+        });
+      }
+
+      function clearGuess() {
+        if (gameFinished) {
+          return;
+        }
+
+        currentGuess = [];
+        message.textContent = "Current guess cleared.";
+        buildGrid();
+      }
+
+      function submitGuess() {
+        if (gameFinished) {
+          return;
+        }
+
+        if (currentGuess.length !== targetPhonemes.length) {
+          message.textContent =
+            "Select exactly " +
+            targetPhonemes.length +
+            " phonemes before submitting.";
+
+          return;
+        }
+
+        const guess = [...currentGuess];
+        submittedGuesses.push(guess);
+        currentGuess = [];
+
+        const correct = guess.every(
+          (phoneme, index) =>
+            phoneme === targetPhonemes[index]
+        );
+
+        buildGrid();
+
+        if (correct) {
+          gameFinished = true;
+
+          message.textContent =
+            "Correct! The English word is " +
+            englishWord.toUpperCase() +
+            ".";
+
+          return;
+        }
+
+        if (submittedGuesses.length >= maximumGuesses) {
+          gameFinished = true;
+
+          message.textContent =
+            "No guesses remain. The correct answer was " +
+            targetPhonemes.join(" ") +
+            ", meaning " +
+            englishWord.toUpperCase() +
+            ".";
+
+          return;
+        }
+
+        const remaining =
+          maximumGuesses - submittedGuesses.length;
+
+        message.textContent =
+          "Try again. " +
+          remaining +
+          " guess" +
+          (remaining === 1 ? "" : "es") +
+          " remaining.";
+      }
+
+      document
+        .getElementById("clear-button")
+        .addEventListener("click", clearGuess);
+
+      document
+        .getElementById("enter-button")
+        .addEventListener("click", submitGuess);
+
+      buildGrid();
+      buildKeyboard();
+    </script>
+  </body>
+  </html>`;
+
+    const file = new Blob([htmlContent], {
+      type: "text/html;charset=utf-8",
+    });
+
+    const downloadUrl = URL.createObjectURL(file);
+    const downloadLink = document.createElement("a");
+
+    downloadLink.href = downloadUrl;
+    downloadLink.download = "phoneme-wordle.html";
+
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
+
+    URL.revokeObjectURL(downloadUrl);
+
+    setPreviewMessage(
+      "The standalone Wordle HTML file has been downloaded.",
+    );
+  }
+
   return (
     <div className="space-y-8">
       <section>
@@ -462,7 +900,6 @@ export default function WordlePage() {
                       const status = guess
                         ? getTileStatus(guess, columnIndex)
                         : "empty";
-
                       return (
                         <div
                           key={columnIndex}
@@ -501,7 +938,7 @@ export default function WordlePage() {
                 </p>
 
                 <p className="mt-1 text-sm text-green-700">
-                  English equivalence: {englishWord}
+                  English Equivalence: {englishWord}
                 </p>
               </div>
             )}
@@ -568,6 +1005,7 @@ export default function WordlePage() {
 
           <button
             type="button"
+            onClick={handleDownloadHtml}
             className="mt-6 w-full rounded-lg border border-blue-600 px-4 py-3 font-semibold text-blue-700 transition hover:bg-blue-50"
           >
             Generate and Download HTML
