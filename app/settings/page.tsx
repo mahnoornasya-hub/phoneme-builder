@@ -137,7 +137,7 @@ export default function SettingsPage() {
 
           <fieldset className="mt-6 space-y-3">
             <legend className="mb-3 font-semibold text-slate-900">
-              Colour theme
+              Colour Theme
             </legend>
 
             <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-4">
@@ -152,7 +152,7 @@ export default function SettingsPage() {
 
               <span>
                 <span className="block font-semibold text-slate-900">
-                  Light mode
+                  Light Mode
                 </span>
 
                 <span className="text-sm text-slate-500">
@@ -173,7 +173,7 @@ export default function SettingsPage() {
 
               <span>
                 <span className="block font-semibold text-slate-900">
-                  Dark mode
+                  Dark Mode
                 </span>
 
                 <span className="text-sm text-slate-500">
@@ -196,7 +196,7 @@ export default function SettingsPage() {
 
           <fieldset className="mt-6 space-y-3">
             <legend className="mb-3 font-semibold text-slate-900">
-              Layout preference
+              Layout Preference
             </legend>
 
             <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-4">
@@ -263,7 +263,7 @@ export default function SettingsPage() {
 
           <span>
             <span className="block font-semibold text-slate-900">
-              Use larger text
+              Use Larger Text
             </span>
 
             <span className="block text-sm text-slate-500">
@@ -289,7 +289,7 @@ export default function SettingsPage() {
         onClick={resetSettings}
         className="rounded-lg border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-900 transition hover:bg-slate-100"
       >
-        Restore default settings
+        Restore Default Settings
       </button>
     </div>
   );

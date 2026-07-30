@@ -13,7 +13,7 @@ export default function AboutPage() {
         <p className="mt-4 max-w-3xl text-lg text-slate-600">
           Phoneme Activity Builder is a classroom tool designed for Speech
           Pathology students and teachers. It allows teachers to create,
-          preview, and download phoneme-based Wordle and Word Search
+          preview and download phoneme based Wordle and Word Search
           activities.
         </p>
       </section>
@@ -25,7 +25,7 @@ export default function AboutPage() {
 
         <p className="mt-3 text-slate-600">
           Assessment 1 focuses on frontend design and usability. This current
-          version does not use a database or dynamic word-list management.
+          version does not use a database or dynamic word list management.
           Backend and database features will be added in later assessments.
         </p>
       </section>
@@ -37,7 +37,7 @@ export default function AboutPage() {
           </h2>
 
           <p className="mt-3 text-slate-600">
-            Teachers can create a Wordle-style activity that uses phoneme
+            Teachers can create a Wordle style activity that uses phoneme
             symbols instead of standard spelling.
           </p>
         </article>
