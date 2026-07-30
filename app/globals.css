@@ -24,3 +24,94 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+/* Saved website preferences */
+
+html {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+/* Dark mode */
+
+html[data-theme="dark"] body {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] main {
+  background-color: #0f172a;
+}
+
+html[data-theme="dark"] .bg-white {
+  background-color: #1e293b !important;
+}
+
+html[data-theme="dark"] .bg-slate-50 {
+  background-color: #172033 !important;
+}
+
+html[data-theme="dark"] .bg-gray-100 {
+  background-color: #1e293b !important;
+}
+
+html[data-theme="dark"] .text-slate-900 {
+  color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .text-slate-600,
+html[data-theme="dark"] .text-slate-500,
+html[data-theme="dark"] .text-gray-600 {
+  color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .border-slate-200,
+html[data-theme="dark"] .border-slate-300 {
+  border-color: #475569 !important;
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] select {
+  background-color: #0f172a;
+  color: #f8fafc;
+  border-color: #64748b;
+}
+
+html[data-theme="dark"] input::placeholder {
+  color: #94a3b8;
+}
+
+/* Compact layout */
+
+html[data-layout="compact"] main {
+  padding-top: 1.5rem !important;
+  padding-bottom: 1.5rem !important;
+}
+
+html[data-layout="compact"] section {
+  row-gap: 1rem;
+}
+
+html[data-layout="compact"] .p-6 {
+  padding: 1rem !important;
+}
+
+html[data-layout="compact"] .p-10 {
+  padding: 1.5rem !important;
+}
+
+html[data-layout="compact"] .space-y-8 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 1rem !important;
+}
+
+/* Large text */
+
+html[data-large-text="true"] {
+  font-size: 18px;
+}
+
+html[data-large-text="true"] input,
+html[data-large-text="true"] select,
+html[data-large-text="true"] button {
+  font-size: 1rem;
+}
