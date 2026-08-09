@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const GRID_SIZE = 10;
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -193,10 +193,20 @@ export default function WordSearchPage() {
     [words]
   );
 
-  const grid = useMemo(
-    () => generateGrid(wordList),
-    [wordList, gridVersion]
-  );
+  /*
+    IMPORTANT:
+    The random grid is stored in state instead of being
+    generated while the page is rendering.
+
+    This prevents Next.js hydration errors caused by
+    Math.random() producing different values on the
+    server and browser.
+  */
+  const [grid, setGrid] = useState<string[][]>([]);
+
+  useEffect(() => {
+    setGrid(generateGrid(wordList));
+  }, [wordList, gridVersion]);
 
   function handleGeneratePreview() {
     if (!title.trim()) {
@@ -209,8 +219,13 @@ export default function WordSearchPage() {
       return;
     }
 
-    setGridVersion((currentVersion) => currentVersion + 1);
-    setMessage("A new word-search preview has been generated.");
+    setGridVersion(
+      (currentVersion) => currentVersion + 1
+    );
+
+    setMessage(
+      "A new word-search preview has been generated."
+    );
   }
 
   function handleDownloadHtml() {
@@ -218,7 +233,6 @@ export default function WordSearchPage() {
       setMessage(
         "Please enter an activity title before downloading."
       );
-
       return;
     }
 
@@ -226,7 +240,13 @@ export default function WordSearchPage() {
       setMessage(
         "Please enter at least one valid word before downloading."
       );
+      return;
+    }
 
+    if (grid.length === 0) {
+      setMessage(
+        "Please wait for the word-search grid to generate."
+      );
       return;
     }
 
@@ -289,8 +309,7 @@ export default function WordSearchPage() {
       border: 1px solid #cbd5e1;
       border-radius: 16px;
       background: #ffffff;
-      box-shadow: 0 12px 30px
-        rgba(15, 23, 42, 0.08);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
     }
 
     h1 {
@@ -422,8 +441,7 @@ export default function WordSearchPage() {
       }
 
       .letter-grid {
-        grid-template-columns:
-          repeat(10, 34px);
+        grid-template-columns: repeat(10, 34px);
       }
 
       .cell {
@@ -457,8 +475,7 @@ export default function WordSearchPage() {
       }
 
       .letter-grid {
-        grid-template-columns:
-          repeat(10, 42px);
+        grid-template-columns: repeat(10, 42px);
       }
 
       .cell {
@@ -548,6 +565,7 @@ export default function WordSearchPage() {
 
   return (
     <div className="space-y-8">
+      {/* Page heading */}
       <section>
         <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-blue-700">
           Activity Builder
@@ -558,22 +576,26 @@ export default function WordSearchPage() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-lg text-slate-600">
-          Create a phoneme-based word search activity, preview the result, and
-          prepare it for download as a standalone HTML worksheet.
+          Create a phoneme-based word search activity,
+          preview the result, and prepare it for download
+          as a standalone HTML worksheet.
         </p>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
+        {/* LEFT SIDE */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-2xl font-semibold text-slate-900">
             Activity Settings
           </h2>
 
           <p className="mt-2 text-slate-600">
-            Configure the worksheet title, instructions, and target words.
+            Configure the worksheet title, instructions,
+            and target words.
           </p>
 
           <div className="mt-6 space-y-5">
+            {/* Title */}
             <div>
               <label
                 htmlFor="activity-title"
@@ -586,12 +608,15 @@ export default function WordSearchPage() {
                 id="activity-title"
                 type="text"
                 value={title}
-                onChange={(event) => setTitle(event.target.value)}
+                onChange={(event) =>
+                  setTitle(event.target.value)
+                }
                 placeholder="Phoneme Word Search"
                 className="w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </div>
 
+            {/* Instructions */}
             <div>
               <label
                 htmlFor="instructions"
@@ -603,12 +628,15 @@ export default function WordSearchPage() {
               <textarea
                 id="instructions"
                 value={instructions}
-                onChange={(event) => setInstructions(event.target.value)}
+                onChange={(event) =>
+                  setInstructions(event.target.value)
+                }
                 rows={3}
                 className="w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </div>
 
+            {/* Words */}
             <div>
               <label
                 htmlFor="word-list"
@@ -620,25 +648,29 @@ export default function WordSearchPage() {
               <textarea
                 id="word-list"
                 value={words}
-                onChange={(event) => setWords(event.target.value)}
+                onChange={(event) =>
+                  setWords(event.target.value)
+                }
                 rows={8}
                 className="w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
 
               <p className="mt-2 text-sm text-slate-500">
-                Enter one word on each line. Use up to 10 words, with no more
-                than 10 letters in each word.
+                Enter one word on each line. Use up to 10
+                words, with no more than 10 letters in each
+                word.
               </p>
             </div>
 
+            {/* Placement information */}
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
               <p className="font-medium text-slate-900">
                 Word Placement
               </p>
 
               <p className="mt-1 text-sm text-slate-600">
-                Words are placed horizontally or vertically in random
-                positions.
+                Words are placed horizontally or vertically
+                in random positions.
               </p>
 
               <p className="mt-2 text-sm font-semibold text-blue-700">
@@ -646,6 +678,7 @@ export default function WordSearchPage() {
               </p>
             </div>
 
+            {/* Generate */}
             <button
               type="button"
               onClick={handleGeneratePreview}
@@ -664,6 +697,7 @@ export default function WordSearchPage() {
           </div>
         </div>
 
+        {/* RIGHT SIDE */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <div>
             <h2 className="text-2xl font-semibold text-slate-900">
@@ -671,7 +705,8 @@ export default function WordSearchPage() {
             </h2>
 
             <p className="mt-2 text-slate-600">
-              Preview of the printable phoneme word-search activity.
+              Preview of the printable phoneme word-search
+              activity.
             </p>
           </div>
 
@@ -686,10 +721,12 @@ export default function WordSearchPage() {
               </h3>
 
               <p className="mt-2 text-sm text-slate-500">
-                {instructions.trim() || "No instructions added."}
+                {instructions.trim() ||
+                  "No instructions added."}
               </p>
             </div>
 
+            {/* Words */}
             <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-4">
               <h4 className="text-center font-semibold text-slate-900">
                 Words to Find
@@ -713,23 +750,33 @@ export default function WordSearchPage() {
               )}
             </div>
 
+            {/* Grid */}
             <div
               className="mt-6 overflow-x-auto pb-2"
               aria-label="Word search preview grid"
             >
-              <div className="mx-auto grid w-fit grid-cols-10 gap-1">
-                {grid.flat().map((letter, index) => (
-                  <div
-                    key={`${letter}-${index}`}
-                    className="grid h-10 w-10 place-items-center rounded-md border border-slate-300 bg-white text-sm font-bold text-slate-900"
-                  >
-                    {letter}
-                  </div>
-                ))}
-              </div>
+              {grid.length > 0 ? (
+                <div className="mx-auto grid w-fit grid-cols-10 gap-1">
+                  {grid.flat().map(
+                    (letter, index) => (
+                      <div
+                        key={`${letter}-${index}`}
+                        className="grid h-10 w-10 place-items-center rounded-md border border-slate-300 bg-white text-sm font-bold text-slate-900"
+                      >
+                        {letter}
+                      </div>
+                    )
+                  )}
+                </div>
+              ) : (
+                <div className="py-12 text-center text-sm text-slate-500">
+                  Generating word search...
+                </div>
+              )}
             </div>
           </div>
 
+          {/* Download */}
           <button
             type="button"
             onClick={handleDownloadHtml}
