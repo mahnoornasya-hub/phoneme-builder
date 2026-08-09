@@ -2,52 +2,139 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const GRID_SIZE = 10;
-const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+type Direction = {
+  row: number;
+  column: number;
+};
 
-type Direction = "horizontal" | "vertical";
+type Phoneme = {
+  symbol: string;
+  label: string;
+  group: "Consonants" | "Vowels";
+};
 
-function normaliseWords(value: string) {
+const MAX_WORDS = 10;
+
+const DIRECTIONS: Direction[] = [
+  { row: 0, column: 1 },   // right
+  { row: 0, column: -1 },  // left
+  { row: 1, column: 0 },   // down
+  { row: -1, column: 0 },  // up
+  { row: 1, column: 1 },   // down-right
+  { row: 1, column: -1 },  // down-left
+  { row: -1, column: 1 },  // up-right
+  { row: -1, column: -1 }, // up-left
+];
+
+const PHONEME_KEYBOARD: Phoneme[] = [
+  // Consonants
+  { symbol: "p", label: "P", group: "Consonants" },
+  { symbol: "t", label: "T", group: "Consonants" },
+  { symbol: "k", label: "K", group: "Consonants" },
+  { symbol: "b", label: "B", group: "Consonants" },
+  { symbol: "d", label: "D", group: "Consonants" },
+  { symbol: "ɡ", label: "G", group: "Consonants" },
+  { symbol: "n", label: "N", group: "Consonants" },
+  { symbol: "m", label: "M", group: "Consonants" },
+  { symbol: "ŋ", label: "NG", group: "Consonants" },
+  { symbol: "f", label: "F", group: "Consonants" },
+  { symbol: "s", label: "S", group: "Consonants" },
+  { symbol: "θ", label: "TH", group: "Consonants" },
+  { symbol: "ʃ", label: "SH", group: "Consonants" },
+  { symbol: "v", label: "V", group: "Consonants" },
+  { symbol: "z", label: "Z", group: "Consonants" },
+  { symbol: "ð", label: "TH", group: "Consonants" },
+  { symbol: "ʒ", label: "ZH", group: "Consonants" },
+  { symbol: "l", label: "L", group: "Consonants" },
+  { symbol: "ɹ", label: "R", group: "Consonants" },
+  { symbol: "w", label: "W", group: "Consonants" },
+  { symbol: "j", label: "Y", group: "Consonants" },
+  { symbol: "h", label: "H", group: "Consonants" },
+  { symbol: "tʃ", label: "CH", group: "Consonants" },
+  { symbol: "dʒ", label: "J", group: "Consonants" },
+
+  // Vowels
+  { symbol: "iː", label: "EE", group: "Vowels" },
+  { symbol: "ɪ", label: "I", group: "Vowels" },
+  { symbol: "e", label: "E", group: "Vowels" },
+  { symbol: "eː", label: "E", group: "Vowels" },
+  { symbol: "æ", label: "A", group: "Vowels" },
+  { symbol: "ɐ", label: "UH", group: "Vowels" },
+  { symbol: "ɐː", label: "AR", group: "Vowels" },
+  { symbol: "ɜː", label: "ER", group: "Vowels" },
+  { symbol: "ʉː", label: "OO", group: "Vowels" },
+  { symbol: "ɔ", label: "O", group: "Vowels" },
+  { symbol: "oː", label: "OR", group: "Vowels" },
+  { symbol: "ʊ", label: "OO", group: "Vowels" },
+  { symbol: "æɪ", label: "AY", group: "Vowels" },
+  { symbol: "ɑe", label: "EYE", group: "Vowels" },
+  { symbol: "oɪ", label: "OY", group: "Vowels" },
+  { symbol: "əʉ", label: "OH", group: "Vowels" },
+  { symbol: "æɔ", label: "OW", group: "Vowels" },
+  { symbol: "ɪə", label: "EAR", group: "Vowels" },
+  { symbol: "ə", label: "UH", group: "Vowels" },
+];
+
+function parsePhonemeSequences(
+  value: string,
+  rows: number,
+  columns: number
+): string[][] {
+  const longestPossibleWord = Math.max(rows, columns);
+
   return value
     .split("\n")
-    .map((word) =>
-      word
+    .map((line) =>
+      line
         .trim()
-        .replace(/[^a-zA-Z]/g, "")
-        .toUpperCase()
+        .split(/\s+/)
+        .map((phoneme) => phoneme.trim())
+        .filter(Boolean)
     )
-    .filter(Boolean)
-    .filter((word) => word.length <= GRID_SIZE)
-    .slice(0, GRID_SIZE);
+    .filter((word) => word.length > 0)
+    .filter((word) => word.length <= longestPossibleWord)
+    .slice(0, MAX_WORDS);
+}
+
+function isInsideGrid(
+  row: number,
+  column: number,
+  rows: number,
+  columns: number
+) {
+  return (
+    row >= 0 &&
+    row < rows &&
+    column >= 0 &&
+    column < columns
+  );
 }
 
 function canPlaceWord(
   grid: string[][],
-  word: string,
+  word: string[],
   startRow: number,
   startColumn: number,
-  direction: Direction
+  direction: Direction,
+  rows: number,
+  columns: number
 ) {
   for (let index = 0; index < word.length; index++) {
     const row =
-      direction === "vertical"
-        ? startRow + index
-        : startRow;
+      startRow + direction.row * index;
 
     const column =
-      direction === "horizontal"
-        ? startColumn + index
-        : startColumn;
+      startColumn + direction.column * index;
 
-    if (row >= GRID_SIZE || column >= GRID_SIZE) {
+    if (!isInsideGrid(row, column, rows, columns)) {
       return false;
     }
 
-    const currentLetter = grid[row][column];
+    const currentValue = grid[row][column];
 
     if (
-      currentLetter !== "" &&
-      currentLetter !== word[index]
+      currentValue !== "" &&
+      currentValue !== word[index]
     ) {
       return false;
     }
@@ -58,29 +145,34 @@ function canPlaceWord(
 
 function placeWord(
   grid: string[][],
-  word: string,
+  word: string[],
   startRow: number,
   startColumn: number,
   direction: Direction
 ) {
-  for (let index = 0; index < word.length; index++) {
+  word.forEach((phoneme, index) => {
     const row =
-      direction === "vertical"
-        ? startRow + index
-        : startRow;
+      startRow + direction.row * index;
 
     const column =
-      direction === "horizontal"
-        ? startColumn + index
-        : startColumn;
+      startColumn + direction.column * index;
 
-    grid[row][column] = word[index];
-  }
+    grid[row][column] = phoneme;
+  });
 }
 
-function generateGrid(words: string[]) {
-  const grid = Array.from({ length: GRID_SIZE }, () =>
-    Array.from({ length: GRID_SIZE }, () => "")
+function generateGrid(
+  words: string[][],
+  rows: number,
+  columns: number
+) {
+  const grid = Array.from(
+    { length: rows },
+    () =>
+      Array.from(
+        { length: columns },
+        () => ""
+      )
   );
 
   const sortedWords = [...words].sort(
@@ -92,28 +184,20 @@ function generateGrid(words: string[]) {
     let placed = false;
     let attempts = 0;
 
-    while (!placed && attempts < 100) {
-      const direction: Direction =
-        Math.random() < 0.5
-          ? "horizontal"
-          : "vertical";
-
-      const maximumRow =
-        direction === "vertical"
-          ? GRID_SIZE - word.length
-          : GRID_SIZE - 1;
-
-      const maximumColumn =
-        direction === "horizontal"
-          ? GRID_SIZE - word.length
-          : GRID_SIZE - 1;
+    while (!placed && attempts < 300) {
+      const direction =
+        DIRECTIONS[
+          Math.floor(
+            Math.random() * DIRECTIONS.length
+          )
+        ];
 
       const startRow = Math.floor(
-        Math.random() * (maximumRow + 1)
+        Math.random() * rows
       );
 
       const startColumn = Math.floor(
-        Math.random() * (maximumColumn + 1)
+        Math.random() * columns
       );
 
       if (
@@ -122,7 +206,9 @@ function generateGrid(words: string[]) {
           word,
           startRow,
           startColumn,
-          direction
+          direction,
+          rows,
+          columns
         )
       ) {
         placeWord(
@@ -140,19 +226,37 @@ function generateGrid(words: string[]) {
     }
   });
 
-  for (let row = 0; row < GRID_SIZE; row++) {
+  /*
+    Use phonemes from the entered words as filler.
+
+    If no phonemes are available, fall back to the
+    complete HCE keyboard.
+  */
+  const enteredPhonemes = Array.from(
+    new Set(words.flat())
+  );
+
+  const fillerPool =
+    enteredPhonemes.length > 0
+      ? enteredPhonemes
+      : PHONEME_KEYBOARD.map(
+          (phoneme) => phoneme.symbol
+        );
+
+  for (let row = 0; row < rows; row++) {
     for (
       let column = 0;
-      column < GRID_SIZE;
+      column < columns;
       column++
     ) {
       if (grid[row][column] === "") {
-        const randomIndex = Math.floor(
-          Math.random() * ALPHABET.length
-        );
-
         grid[row][column] =
-          ALPHABET[randomIndex];
+          fillerPool[
+            Math.floor(
+              Math.random() *
+                fillerPool.length
+            )
+          ];
       }
     }
   }
@@ -174,57 +278,124 @@ export default function WordSearchPage() {
     "Phoneme Word Search"
   );
 
-  const [instructions, setInstructions] = useState(
-    "Find and circle all the hidden words."
-  );
+  const [instructions, setInstructions] =
+    useState(
+      "Find and circle all the hidden phoneme sequences."
+    );
 
   const [words, setWords] = useState(
-    "ship\nshop\nshoe\nfish\nbrush"
+    "tʃ ɪ n\nb æɪ t\ndʒ æ m\nb æ d\nb ʉː t"
   );
+
+  const [rows, setRows] = useState(10);
+
+  const [columns, setColumns] =
+    useState(10);
 
   const [message, setMessage] = useState(
     "The preview updates automatically as you change the settings."
   );
 
-  const [gridVersion, setGridVersion] = useState(0);
+  const [gridVersion, setGridVersion] =
+    useState(0);
+
+  const [grid, setGrid] = useState<
+    string[][]
+  >([]);
 
   const wordList = useMemo(
-    () => normaliseWords(words),
-    [words]
+    () =>
+      parsePhonemeSequences(
+        words,
+        rows,
+        columns
+      ),
+    [words, rows, columns]
   );
 
-  /*
-    IMPORTANT:
-    The random grid is stored in state instead of being
-    generated while the page is rendering.
+  const consonants =
+    PHONEME_KEYBOARD.filter(
+      (phoneme) =>
+        phoneme.group === "Consonants"
+    );
 
-    This prevents Next.js hydration errors caused by
-    Math.random() producing different values on the
-    server and browser.
-  */
-  const [grid, setGrid] = useState<string[][]>([]);
+  const vowels =
+    PHONEME_KEYBOARD.filter(
+      (phoneme) =>
+        phoneme.group === "Vowels"
+    );
 
   useEffect(() => {
-    setGrid(generateGrid(wordList));
-  }, [wordList, gridVersion]);
+    setGrid(
+      generateGrid(
+        wordList,
+        rows,
+        columns
+      )
+    );
+  }, [
+    wordList,
+    rows,
+    columns,
+    gridVersion,
+  ]);
+
+  function appendPhoneme(
+    phoneme: string
+  ) {
+    setWords((currentWords) => {
+      if (!currentWords.trim()) {
+        return phoneme;
+      }
+
+      if (currentWords.endsWith("\n")) {
+        return currentWords + phoneme;
+      }
+
+      if (currentWords.endsWith(" ")) {
+        return currentWords + phoneme;
+      }
+
+      return currentWords + " " + phoneme;
+    });
+  }
+
+  function startNewWord() {
+    setWords((currentWords) => {
+      if (!currentWords.trim()) {
+        return currentWords;
+      }
+
+      if (currentWords.endsWith("\n")) {
+        return currentWords;
+      }
+
+      return currentWords + "\n";
+    });
+  }
 
   function handleGeneratePreview() {
     if (!title.trim()) {
-      setMessage("Please enter an activity title.");
+      setMessage(
+        "Please enter an activity title."
+      );
       return;
     }
 
     if (wordList.length === 0) {
-      setMessage("Please enter at least one valid word.");
+      setMessage(
+        "Please enter at least one valid phoneme sequence."
+      );
       return;
     }
 
     setGridVersion(
-      (currentVersion) => currentVersion + 1
+      (currentVersion) =>
+        currentVersion + 1
     );
 
     setMessage(
-      "A new word-search preview has been generated."
+      "A new phoneme word-search grid has been generated."
     );
   }
 
@@ -238,30 +409,32 @@ export default function WordSearchPage() {
 
     if (wordList.length === 0) {
       setMessage(
-        "Please enter at least one valid word before downloading."
+        "Please enter at least one valid phoneme sequence before downloading."
       );
       return;
     }
 
     if (grid.length === 0) {
       setMessage(
-        "Please wait for the word-search grid to generate."
+        "Please wait for the grid to generate."
       );
       return;
     }
 
-    const safeTitle = escapeHtml(title.trim());
+    const safeTitle =
+      escapeHtml(title.trim());
 
-    const safeInstructions = escapeHtml(
-      instructions.trim() ||
-        "Find all the hidden words."
-    );
+    const safeInstructions =
+      escapeHtml(
+        instructions.trim() ||
+          "Find all the hidden phoneme sequences."
+      );
 
     const wordListHtml = wordList
       .map(
         (word) =>
           `<span class="word">${escapeHtml(
-            word
+            word.join(" ")
           )}</span>`
       )
       .join("");
@@ -269,9 +442,9 @@ export default function WordSearchPage() {
     const gridHtml = grid
       .flat()
       .map(
-        (letter) =>
+        (phoneme) =>
           `<div class="cell">${escapeHtml(
-            letter
+            phoneme
           )}</div>`
       )
       .join("");
@@ -303,7 +476,7 @@ export default function WordSearchPage() {
     }
 
     main {
-      width: min(760px, 100%);
+      width: min(900px, 100%);
       margin: 0 auto;
       padding: 32px;
       border: 1px solid #cbd5e1;
@@ -320,7 +493,7 @@ export default function WordSearchPage() {
 
     .instructions {
       margin: 14px auto 0;
-      max-width: 620px;
+      max-width: 650px;
       color: #475569;
       text-align: center;
       line-height: 1.6;
@@ -348,11 +521,12 @@ export default function WordSearchPage() {
     .grid-wrapper {
       overflow-x: auto;
       margin-top: 32px;
+      padding-bottom: 8px;
     }
 
-    .letter-grid {
+    .phoneme-grid {
       display: grid;
-      grid-template-columns: repeat(10, 48px);
+      grid-template-columns: repeat(${columns}, 46px);
       justify-content: center;
       gap: 4px;
       width: fit-content;
@@ -361,14 +535,15 @@ export default function WordSearchPage() {
 
     .cell {
       display: grid;
-      width: 48px;
-      height: 48px;
+      width: 46px;
+      height: 46px;
       place-items: center;
       border: 1px solid #94a3b8;
       border-radius: 5px;
       background: #ffffff;
-      font-size: 19px;
+      font-size: 15px;
       font-weight: 700;
+      text-align: center;
     }
 
     .word-section {
@@ -400,6 +575,16 @@ export default function WordSearchPage() {
       background: #dbeafe;
       font-size: 14px;
       font-weight: 700;
+    }
+
+    .note {
+      margin-top: 24px;
+      padding: 14px;
+      border-radius: 10px;
+      color: #475569;
+      background: #f1f5f9;
+      font-size: 14px;
+      line-height: 1.5;
     }
 
     .actions {
@@ -440,14 +625,14 @@ export default function WordSearchPage() {
         gap: 18px;
       }
 
-      .letter-grid {
-        grid-template-columns: repeat(10, 34px);
+      .phoneme-grid {
+        grid-template-columns: repeat(${columns}, 36px);
       }
 
       .cell {
-        width: 34px;
-        height: 34px;
-        font-size: 14px;
+        width: 36px;
+        height: 36px;
+        font-size: 12px;
       }
     }
 
@@ -474,13 +659,14 @@ export default function WordSearchPage() {
         display: none;
       }
 
-      .letter-grid {
-        grid-template-columns: repeat(10, 42px);
+      .phoneme-grid {
+        grid-template-columns: repeat(${columns}, 40px);
       }
 
       .cell {
-        width: 42px;
-        height: 42px;
+        width: 40px;
+        height: 40px;
+        font-size: 13px;
       }
     }
   </style>
@@ -496,32 +682,44 @@ export default function WordSearchPage() {
 
     <section class="details">
       <div>
-        <span class="line-label">Name</span>
+        <span class="line-label">
+          Name
+        </span>
+
         <div class="line"></div>
       </div>
 
       <div>
-        <span class="line-label">Date</span>
+        <span class="line-label">
+          Date
+        </span>
+
         <div class="line"></div>
       </div>
     </section>
 
     <div
       class="grid-wrapper"
-      aria-label="Word search letter grid"
+      aria-label="Phoneme word search grid"
     >
-      <div class="letter-grid">
+      <div class="phoneme-grid">
         ${gridHtml}
       </div>
     </div>
 
     <section class="word-section">
-      <h2>Words to Find</h2>
+      <h2>Phoneme Sequences to Find</h2>
 
       <div class="word-list">
         ${wordListHtml}
       </div>
     </section>
+
+    <div class="note">
+      Sequences may appear horizontally,
+      vertically or diagonally, forwards or
+      backwards.
+    </div>
 
     <div class="actions">
       <button
@@ -535,9 +733,12 @@ export default function WordSearchPage() {
 </body>
 </html>`;
 
-    const file = new Blob([htmlContent], {
-      type: "text/html;charset=utf-8",
-    });
+    const file = new Blob(
+      [htmlContent],
+      {
+        type: "text/html;charset=utf-8",
+      }
+    );
 
     const downloadUrl =
       URL.createObjectURL(file);
@@ -550,7 +751,9 @@ export default function WordSearchPage() {
     downloadLink.download =
       "phoneme-word-search.html";
 
-    document.body.appendChild(downloadLink);
+    document.body.appendChild(
+      downloadLink
+    );
 
     downloadLink.click();
 
@@ -559,13 +762,50 @@ export default function WordSearchPage() {
     URL.revokeObjectURL(downloadUrl);
 
     setMessage(
-      "The standalone word-search HTML file has been downloaded."
+      "The standalone phoneme word-search HTML file has been downloaded."
+    );
+  }
+
+  function renderKeyboardGroup(
+    heading: string,
+    phonemes: Phoneme[]
+  ) {
+    return (
+      <div>
+        <p className="mb-2 text-sm font-semibold text-slate-700">
+          {heading}
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          {phonemes.map((phoneme) => (
+            <button
+              key={phoneme.symbol}
+              type="button"
+              onClick={() =>
+                appendPhoneme(
+                  phoneme.symbol
+                )
+              }
+              title={`Add ${phoneme.symbol}`}
+              className="min-w-12 rounded-lg border border-slate-300 bg-white px-3 py-2 text-center font-semibold text-slate-900 transition hover:border-blue-500 hover:bg-blue-50"
+            >
+              <span className="block text-base">
+                {phoneme.symbol}
+              </span>
+
+              <span className="block text-[10px] text-slate-500">
+                {phoneme.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      {/* Page heading */}
+      {/* Heading */}
       <section>
         <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-blue-700">
           Activity Builder
@@ -576,22 +816,22 @@ export default function WordSearchPage() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-lg text-slate-600">
-          Create a phoneme-based word search activity,
-          preview the result, and prepare it for download
-          as a standalone HTML worksheet.
+          Create an HCE phoneme-based word search,
+          preview the result, and prepare it for
+          download as a standalone HTML worksheet.
         </p>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        {/* LEFT SIDE */}
+        {/* SETTINGS */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-2xl font-semibold text-slate-900">
             Activity Settings
           </h2>
 
           <p className="mt-2 text-slate-600">
-            Configure the worksheet title, instructions,
-            and target words.
+            Configure the worksheet, HCE phoneme
+            sequences and grid size.
           </p>
 
           <div className="mt-6 space-y-5">
@@ -609,7 +849,9 @@ export default function WordSearchPage() {
                 type="text"
                 value={title}
                 onChange={(event) =>
-                  setTitle(event.target.value)
+                  setTitle(
+                    event.target.value
+                  )
                 }
                 placeholder="Phoneme Word Search"
                 className="w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -629,59 +871,187 @@ export default function WordSearchPage() {
                 id="instructions"
                 value={instructions}
                 onChange={(event) =>
-                  setInstructions(event.target.value)
+                  setInstructions(
+                    event.target.value
+                  )
                 }
                 rows={3}
                 className="w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </div>
 
-            {/* Words */}
+            {/* Grid Size */}
+            <div>
+              <p className="mb-2 block font-medium text-slate-900">
+                Grid Size
+              </p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label
+                    htmlFor="rows"
+                    className="mb-2 block text-sm text-slate-600"
+                  >
+                    Rows
+                  </label>
+
+                  <select
+                    id="rows"
+                    value={rows}
+                    onChange={(event) =>
+                      setRows(
+                        Number(
+                          event.target.value
+                        )
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  >
+                    {Array.from(
+                      { length: 8 },
+                      (_, index) =>
+                        index + 8
+                    ).map((size) => (
+                      <option
+                        key={size}
+                        value={size}
+                      >
+                        {size} Rows
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="columns"
+                    className="mb-2 block text-sm text-slate-600"
+                  >
+                    Columns
+                  </label>
+
+                  <select
+                    id="columns"
+                    value={columns}
+                    onChange={(event) =>
+                      setColumns(
+                        Number(
+                          event.target.value
+                        )
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  >
+                    {Array.from(
+                      { length: 8 },
+                      (_, index) =>
+                        index + 8
+                    ).map((size) => (
+                      <option
+                        key={size}
+                        value={size}
+                      >
+                        {size} Columns
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Word List */}
             <div>
               <label
                 htmlFor="word-list"
                 className="mb-2 block font-medium text-slate-900"
               >
-                Word List
+                Phoneme Sequences
               </label>
 
               <textarea
                 id="word-list"
                 value={words}
                 onChange={(event) =>
-                  setWords(event.target.value)
+                  setWords(
+                    event.target.value
+                  )
                 }
                 rows={8}
-                className="w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-lg border border-slate-300 p-3 font-mono text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
 
               <p className="mt-2 text-sm text-slate-500">
-                Enter one word on each line. Use up to 10
-                words, with no more than 10 letters in each
-                word.
+                Enter one phoneme sequence on each
+                line. Separate each HCE phoneme with
+                a space.
+              </p>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Example:{" "}
+                <span className="font-mono">
+                  b æɪ t
+                </span>{" "}
+                contains 3 phonemes and therefore
+                uses 3 grid cells.
               </p>
             </div>
 
-            {/* Placement information */}
+            {/* HCE Keyboard */}
+            <div className="rounded-lg border border-slate-200 p-4">
+              <p className="font-semibold text-slate-900">
+                HCE Phoneme Keyboard
+              </p>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Select a phoneme to add it to the
+                current sequence.
+              </p>
+
+              <div className="mt-4 space-y-4">
+                {renderKeyboardGroup(
+                  "Consonants",
+                  consonants
+                )}
+
+                {renderKeyboardGroup(
+                  "Vowels",
+                  vowels
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={startNewWord}
+                className="mt-4 w-full rounded-lg border border-blue-600 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+              >
+                Start New Sequence
+              </button>
+            </div>
+
+            {/* Placement Information */}
             <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
               <p className="font-medium text-slate-900">
-                Word Placement
+                Phoneme Placement
               </p>
 
               <p className="mt-1 text-sm text-slate-600">
-                Words are placed horizontally or vertically
-                in random positions.
+                Sequences can be placed
+                horizontally, vertically or
+                diagonally, forwards or backwards.
               </p>
 
               <p className="mt-2 text-sm font-semibold text-blue-700">
-                Valid words: {wordList.length} / {GRID_SIZE}
+                Valid sequences:{" "}
+                {wordList.length} / {MAX_WORDS}
               </p>
             </div>
 
             {/* Generate */}
             <button
               type="button"
-              onClick={handleGeneratePreview}
+              onClick={
+                handleGeneratePreview
+              }
               className="w-full rounded-lg bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2"
             >
               Generate Preview
@@ -697,7 +1067,7 @@ export default function WordSearchPage() {
           </div>
         </div>
 
-        {/* RIGHT SIDE */}
+        {/* PREVIEW */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <div>
             <h2 className="text-2xl font-semibold text-slate-900">
@@ -705,8 +1075,8 @@ export default function WordSearchPage() {
             </h2>
 
             <p className="mt-2 text-slate-600">
-              Preview of the printable phoneme word-search
-              activity.
+              Preview of the printable HCE phoneme
+              word-search activity.
             </p>
           </div>
 
@@ -717,35 +1087,45 @@ export default function WordSearchPage() {
               </p>
 
               <h3 className="mt-2 text-xl font-bold text-slate-900">
-                {title.trim() || "Untitled Activity"}
+                {title.trim() ||
+                  "Untitled Activity"}
               </h3>
 
               <p className="mt-2 text-sm text-slate-500">
                 {instructions.trim() ||
                   "No instructions added."}
               </p>
+
+              <p className="mt-2 text-xs text-slate-500">
+                {rows} rows × {columns} columns
+              </p>
             </div>
 
             {/* Words */}
             <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-4">
               <h4 className="text-center font-semibold text-slate-900">
-                Words to Find
+                Phoneme Sequences to Find
               </h4>
 
               {wordList.length > 0 ? (
                 <div className="mt-3 flex flex-wrap justify-center gap-2">
-                  {wordList.map((word, index) => (
-                    <span
-                      key={`${word}-${index}`}
-                      className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700"
-                    >
-                      {word}
-                    </span>
-                  ))}
+                  {wordList.map(
+                    (word, index) => (
+                      <span
+                        key={`${word.join(
+                          "-"
+                        )}-${index}`}
+                        className="rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700"
+                      >
+                        {word.join(" ")}
+                      </span>
+                    )
+                  )}
                 </div>
               ) : (
                 <p className="mt-3 text-center text-sm text-slate-500">
-                  No valid words have been added.
+                  No valid phoneme sequences have
+                  been added.
                 </p>
               )}
             </div>
@@ -753,26 +1133,36 @@ export default function WordSearchPage() {
             {/* Grid */}
             <div
               className="mt-6 overflow-x-auto pb-2"
-              aria-label="Word search preview grid"
+              aria-label="Phoneme word search preview grid"
             >
               {grid.length > 0 ? (
-                <div className="mx-auto grid w-fit grid-cols-10 gap-1">
+                <div
+                  className="mx-auto grid w-fit gap-1"
+                  style={{
+                    gridTemplateColumns: `repeat(${columns}, 2.5rem)`,
+                  }}
+                >
                   {grid.flat().map(
-                    (letter, index) => (
+                    (phoneme, index) => (
                       <div
-                        key={`${letter}-${index}`}
-                        className="grid h-10 w-10 place-items-center rounded-md border border-slate-300 bg-white text-sm font-bold text-slate-900"
+                        key={`${phoneme}-${index}`}
+                        className="grid h-10 w-10 place-items-center rounded-md border border-slate-300 bg-white px-1 text-center text-xs font-bold text-slate-900"
                       >
-                        {letter}
+                        {phoneme}
                       </div>
                     )
                   )}
                 </div>
               ) : (
                 <div className="py-12 text-center text-sm text-slate-500">
-                  Generating word search...
+                  Generating phoneme word search...
                 </div>
               )}
+            </div>
+
+            <div className="mt-5 rounded-lg border border-slate-200 bg-white p-3 text-center text-xs text-slate-600">
+              Sequences may run in any of 8
+              directions.
             </div>
           </div>
 
