@@ -1,9 +1,11 @@
 @import "tailwindcss";
 
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
 }
+
 
 @theme inline {
   --color-background: var(--background);
@@ -12,6 +14,9 @@
   --font-mono: var(--font-geist-mono);
 }
 
+
+/* System colour preference */
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
@@ -19,12 +24,17 @@
   }
 }
 
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
-/* Saved website preferences */
+
+
+/* =========================================================
+   SAVED WEBSITE PREFERENCES
+   ========================================================= */
 
 html {
   transition:
@@ -32,32 +42,82 @@ html {
     color 0.2s ease;
 }
 
-/* Dark mode */
+
+/* =========================================================
+   DARK MODE
+   Only active when data-theme="dark" is applied to <html>
+   ========================================================= */
+
+html[data-theme="dark"] {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+}
+
 
 html[data-theme="dark"] body {
   background-color: #0f172a;
   color: #f8fafc;
 }
 
+
 html[data-theme="dark"] main {
   background-color: #0f172a;
 }
+
+
+/* Main cards */
 
 html[data-theme="dark"] .bg-white {
   background-color: #1e293b !important;
 }
 
+
 html[data-theme="dark"] .bg-slate-50 {
   background-color: #172033 !important;
 }
+
 
 html[data-theme="dark"] .bg-gray-100 {
   background-color: #1e293b !important;
 }
 
+
+/*
+  Light blue information boxes.
+
+  This fixes:
+  - Phoneme Hint
+  - Words to Find
+  - Word Placement
+  - difficulty badges
+  - other bg-blue-50 sections
+*/
+
+html[data-theme="dark"] .bg-blue-50 {
+  background-color: #1e293b !important;
+}
+
+
+/* Light green answer/result boxes */
+
+html[data-theme="dark"] .bg-green-50 {
+  background-color: #163126 !important;
+}
+
+
+/* =========================================================
+   TEXT
+   ========================================================= */
+
 html[data-theme="dark"] .text-slate-900 {
   color: #f8fafc !important;
 }
+
+
+html[data-theme="dark"] .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
 
 html[data-theme="dark"] .text-slate-600,
 html[data-theme="dark"] .text-slate-500,
@@ -65,50 +125,133 @@ html[data-theme="dark"] .text-gray-600 {
   color: #cbd5e1 !important;
 }
 
+
+/* Blue text needs to stay visible on dark backgrounds */
+
+html[data-theme="dark"] .text-blue-700 {
+  color: #93c5fd !important;
+}
+
+
+html[data-theme="dark"] .text-blue-600 {
+  color: #60a5fa !important;
+}
+
+
+/* Green result text */
+
+html[data-theme="dark"] .text-green-800 {
+  color: #bbf7d0 !important;
+}
+
+
+html[data-theme="dark"] .text-green-700 {
+  color: #86efac !important;
+}
+
+
+/* =========================================================
+   BORDERS
+   ========================================================= */
+
 html[data-theme="dark"] .border-slate-200,
 html[data-theme="dark"] .border-slate-300 {
   border-color: #475569 !important;
 }
 
+
+/* Blue information boxes */
+
+html[data-theme="dark"] .border-blue-100,
+html[data-theme="dark"] .border-blue-200 {
+  border-color: #475569 !important;
+}
+
+
+/* Green result boxes */
+
+html[data-theme="dark"] .border-green-200 {
+  border-color: #166534 !important;
+}
+
+
+/* =========================================================
+   FORM ELEMENTS
+   ========================================================= */
+
 html[data-theme="dark"] input,
-html[data-theme="dark"] select {
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
   background-color: #0f172a;
   color: #f8fafc;
   border-color: #64748b;
 }
 
-html[data-theme="dark"] input::placeholder {
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
   color: #94a3b8;
 }
 
-/* Compact layout */
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+/*
+  White secondary buttons such as Clear.
+  Primary blue buttons remain blue.
+*/
+
+html[data-theme="dark"] button.bg-white {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+
+html[data-theme="dark"] button.bg-white:hover {
+  background-color: #334155 !important;
+}
+
+
+/* =========================================================
+   COMPACT LAYOUT
+   ========================================================= */
 
 html[data-layout="compact"] main {
   padding-top: 1.5rem !important;
   padding-bottom: 1.5rem !important;
 }
 
+
 html[data-layout="compact"] section {
   row-gap: 1rem;
 }
+
 
 html[data-layout="compact"] .p-6 {
   padding: 1rem !important;
 }
 
+
 html[data-layout="compact"] .p-10 {
   padding: 1.5rem !important;
 }
+
 
 html[data-layout="compact"] .space-y-8 > :not([hidden]) ~ :not([hidden]) {
   margin-top: 1rem !important;
 }
 
-/* Large text */
+
+/* =========================================================
+   LARGE TEXT
+   ========================================================= */
 
 html[data-large-text="true"] {
   font-size: 18px;
 }
+
 
 html[data-large-text="true"] input,
 html[data-large-text="true"] select,
