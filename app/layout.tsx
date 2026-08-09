@@ -1,23 +1,19 @@
-import PreferencesLoader from "@/components/common/PreferencesLoader";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import Layout from "@/components/layout/Layout";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+import Layout from "@/components/layout/Layout";
+import PreferencesLoader from "@/components/common/PreferencesLoader";
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const inter = Inter({
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "Phoneme Activity Builder",
   description:
-    "A phoneme-based Wordle and Word Search activity builder for teachers.",
+    "Create phoneme-based Wordle and Word Search classroom activities.",
 };
 
 export default function RootLayout({
@@ -27,11 +23,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={inter.className}>
         <PreferencesLoader />
-<Layout>{children}</Layout>
+        <Layout>{children}</Layout>
       </body>
     </html>
   );
