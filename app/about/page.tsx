@@ -1,8 +1,9 @@
 export default function AboutPage() {
   return (
     <div className="space-y-8">
+      {/* Introduction */}
       <section>
-        <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-blue-700">
+        <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">
           About the project
         </p>
 
@@ -18,6 +19,7 @@ export default function AboutPage() {
         </p>
       </section>
 
+      {/* Assessment Scope */}
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-2xl font-semibold text-slate-900">
           Assessment 1 Scope
@@ -30,6 +32,7 @@ export default function AboutPage() {
         </p>
       </section>
 
+      {/* Activities */}
       <section className="grid gap-6 md:grid-cols-2">
         <article className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-2xl font-semibold text-slate-900">
@@ -54,6 +57,7 @@ export default function AboutPage() {
         </article>
       </section>
 
+      {/* Student Information */}
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-2xl font-semibold text-slate-900">
           Student Information
@@ -62,11 +66,15 @@ export default function AboutPage() {
         <dl className="mt-4 space-y-3">
           <div>
             <dt className="font-semibold text-slate-900">Name</dt>
-            <dd className="text-slate-600">Mahnoor Anasyabila Sohail</dd>
+            <dd className="text-slate-600">
+              Mahnoor Anasyabila Sohail
+            </dd>
           </div>
 
           <div>
-            <dt className="font-semibold text-slate-900">Student number</dt>
+            <dt className="font-semibold text-slate-900">
+              Student Number
+            </dt>
             <dd className="text-slate-600">21981775</dd>
           </div>
 
@@ -79,15 +87,26 @@ export default function AboutPage() {
         </dl>
       </section>
 
-      <section className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6">
+      {/* Website Demonstration Video */}
+      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-2xl font-semibold text-slate-900">
           Website Demonstration Video
         </h2>
 
         <p className="mt-3 text-slate-600">
-          A short video explaining how to use the website will be added here
-          before submission.
+          Watch this short video to learn how to use the Phoneme Activity
+          Builder.
         </p>
+
+        <video
+          controls
+          playsInline
+          preload="metadata"
+          className="mt-5 w-full rounded-lg border border-slate-300"
+        >
+          <source src="/website-demo.mp4" type="video/mp4" />
+          Your browser does not support the video element.
+        </video>
       </section>
     </div>
   );
