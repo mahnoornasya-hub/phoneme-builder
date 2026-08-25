@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum ActivityType {
+  WORDLE
+  WORD_SEARCH
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+model WordList {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  words      Word[]
+  activities Activity[]
+}
+
+model Word {
+  id          Int      @id @default(autoincrement())
+  englishWord String
+  hint        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  wordListId Int?
+  wordList   WordList? @relation(fields: [wordListId], references: [id], onDelete: SetNull)
+
+  phonemes   Phoneme[]
+  activities ActivityWord[]
+
+  @@index([englishWord])
+  @@index([wordListId])
+}
+
+model Phoneme {
+  id        Int      @id @default(autoincrement())
+  symbol    String
+  position  Int
+  createdAt DateTime @default(now())
+
+  wordId Int
+  word   Word @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([wordId, position])
+  @@index([wordId])
+}
+
+model Activity {
+  id              Int          @id @default(autoincrement())
+  name            String
+  type            ActivityType
+  difficulty      Difficulty   @default(EASY)
+  instructions    String?
+  hint            String?
+  numberOfGuesses Int?
+  gridRows        Int?
+  gridColumns     Int?
+  showHints       Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  wordListId Int?
+  wordList   WordList? @relation(fields: [wordListId], references: [id], onDelete: SetNull)
+
+  words ActivityWord[]
+
+  @@index([type])
+  @@index([wordListId])
+}
+
+model ActivityWord {
+  activityId Int
+  wordId     Int
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  word     Word     @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@id([activityId, wordId])
+}
