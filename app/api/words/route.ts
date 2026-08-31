@@ -5,6 +5,7 @@ export async function GET() {
   try {
     const words = await prisma.word.findMany({
       include: {
+        wordList: true,
         phonemes: {
           orderBy: {
             position: "asc",
@@ -45,6 +46,11 @@ export async function POST(request: NextRequest) {
 
     const phonemes = body.phonemes;
 
+    const wordListId =
+      body.wordListId === null || body.wordListId === undefined
+        ? null
+        : Number(body.wordListId);
+
     if (!englishWord) {
       return NextResponse.json(
         {
@@ -77,10 +83,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (
+      wordListId !== null &&
+      (!Number.isInteger(wordListId) || wordListId <= 0)
+    ) {
+      return NextResponse.json(
+        {
+          error: "Invalid word list ID.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (wordListId !== null) {
+      const wordList = await prisma.wordList.findUnique({
+        where: {
+          id: wordListId,
+        },
+      });
+
+      if (!wordList) {
+        return NextResponse.json(
+          {
+            error: "Word list not found.",
+          },
+          { status: 404 }
+        );
+      }
+    }
+
     const word = await prisma.word.create({
       data: {
         englishWord,
         hint: hint || null,
+        wordListId,
 
         phonemes: {
           create: cleanedPhonemes.map((symbol, index) => ({
@@ -91,6 +127,7 @@ export async function POST(request: NextRequest) {
       },
 
       include: {
+        wordList: true,
         phonemes: {
           orderBy: {
             position: "asc",

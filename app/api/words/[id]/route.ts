@@ -27,6 +27,7 @@ export async function GET(
         id: wordId,
       },
       include: {
+        wordList: true,
         phonemes: {
           orderBy: {
             position: "asc",
@@ -95,6 +96,11 @@ export async function PUT(
 
     const phonemes = body.phonemes;
 
+    const wordListId =
+      body.wordListId === null || body.wordListId === undefined
+        ? null
+        : Number(body.wordListId);
+
     if (!englishWord) {
       return NextResponse.json(
         { error: "English word is required." },
@@ -121,6 +127,31 @@ export async function PUT(
       );
     }
 
+    if (
+      wordListId !== null &&
+      (!Number.isInteger(wordListId) || wordListId <= 0)
+    ) {
+      return NextResponse.json(
+        { error: "Invalid word list ID." },
+        { status: 400 }
+      );
+    }
+
+    if (wordListId !== null) {
+      const wordList = await prisma.wordList.findUnique({
+        where: {
+          id: wordListId,
+        },
+      });
+
+      if (!wordList) {
+        return NextResponse.json(
+          { error: "Word list not found." },
+          { status: 404 }
+        );
+      }
+    }
+
     const updatedWord = await prisma.$transaction(async (tx) => {
       await tx.phoneme.deleteMany({
         where: {
@@ -135,6 +166,7 @@ export async function PUT(
         data: {
           englishWord,
           hint: hint || null,
+          wordListId,
 
           phonemes: {
             create: cleanedPhonemes.map((symbol, index) => ({
@@ -144,6 +176,7 @@ export async function PUT(
           },
         },
         include: {
+          wordList: true,
           phonemes: {
             orderBy: {
               position: "asc",
