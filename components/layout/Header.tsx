@@ -109,6 +109,14 @@ export default function Header() {
             </Link>
 
             <Link
+              href="/manage-words"
+              onClick={closeMenu}
+              className="px-5 py-3 transition hover:bg-blue-600"
+            >
+              Manage Words
+            </Link>
+
+            <Link
               href="/about"
               onClick={closeMenu}
               className="border-t border-blue-600 px-5 py-3 transition hover:bg-blue-600"
