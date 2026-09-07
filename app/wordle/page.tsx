@@ -39,6 +39,24 @@ type WordList = {
   description: string | null;
 };
 
+type DatabaseActivity = {
+  id: number;
+  name: string;
+  type: "WORDLE" | "WORD_SEARCH";
+  difficulty: "EASY" | "MEDIUM" | "HARD";
+  instructions: string | null;
+  hint: string | null;
+  numberOfGuesses: number | null;
+  gridRows: number | null;
+  gridColumns: number | null;
+  showHints: boolean;
+  wordListId: number | null;
+  wordList: {
+    id: number;
+    name: string;
+  } | null;
+};
+
 const phonemeKeyboard: Phoneme[] = [
   // Consonants
   { symbol: "p", label: "P", example: "P as in pin", group: "Consonants" },
@@ -135,6 +153,21 @@ function escapeHtml(value: string) {
 }
 
 export default function WordlePage() {
+  const [savedActivities, setSavedActivities] =
+    useState<DatabaseActivity[]>([]);
+
+  const [selectedActivityId, setSelectedActivityId] =
+    useState("");
+
+  const [activityName, setActivityName] =
+    useState("");
+
+  const [savingActivity, setSavingActivity] =
+    useState(false);
+
+  const [activityMessage, setActivityMessage] =
+    useState("");
+
   const [savedWords, setSavedWords] =
     useState<DatabaseWord[]>([]);
 
@@ -158,6 +191,11 @@ export default function WordlePage() {
 
   const [englishWord, setEnglishWord] =
     useState("Thing");
+
+  const [instructions, setInstructions] =
+    useState(
+      "Select the HCE phonemes in the correct order and submit your guess."
+    );
 
   const [difficulty, setDifficulty] =
     useState("Easy");
@@ -190,13 +228,21 @@ export default function WordlePage() {
       try {
         setDatabaseLoading(true);
 
-        const [wordsResponse, wordListsResponse] =
-          await Promise.all([
-            fetch("/api/words"),
-            fetch("/api/word-lists"),
-          ]);
+        const [
+          wordsResponse,
+          wordListsResponse,
+          activitiesResponse,
+        ] = await Promise.all([
+          fetch("/api/words"),
+          fetch("/api/word-lists"),
+          fetch("/api/activities"),
+        ]);
 
-        if (!wordsResponse.ok || !wordListsResponse.ok) {
+        if (
+          !wordsResponse.ok ||
+          !wordListsResponse.ok ||
+          !activitiesResponse.ok
+        ) {
           throw new Error(
             "Failed to load saved database data."
           );
@@ -208,8 +254,20 @@ export default function WordlePage() {
         const wordListsData: WordList[] =
           await wordListsResponse.json();
 
+        const activitiesData: DatabaseActivity[] =
+          await activitiesResponse.json();
+
         setSavedWords(wordsData);
         setWordLists(wordListsData);
+        setSavedActivities(
+          activitiesData.filter(
+            (activity) => activity.type === "WORDLE"
+          )
+        );
+
+        setActivityMessage(
+          "Saved Wordle activity configurations loaded from the database."
+        );
 
         setDatabaseMessage(
           "Saved words loaded from the database."
@@ -270,6 +328,197 @@ export default function WordlePage() {
 
     resetGame(
       "The number of guesses changed. The preview game has been reset."
+    );
+  }
+
+  function formatDifficulty(
+    value: DatabaseActivity["difficulty"]
+  ) {
+    return (
+      value.charAt(0) +
+      value.slice(1).toLowerCase()
+    );
+  }
+
+  function handleSavedActivitySelection(
+    value: string
+  ) {
+    setSelectedActivityId(value);
+
+    if (!value) {
+      setActivityName("");
+      setActivityMessage(
+        "Select a saved Wordle activity to load its settings, or create a new one below."
+      );
+      return;
+    }
+
+    const selectedActivity =
+      savedActivities.find(
+        (activity) =>
+          activity.id === Number(value)
+      );
+
+    if (!selectedActivity) {
+      setActivityMessage(
+        "The selected activity could not be found."
+      );
+      return;
+    }
+
+    setActivityName(selectedActivity.name);
+
+    setDifficulty(
+      formatDifficulty(selectedActivity.difficulty)
+    );
+
+    setInstructions(
+      selectedActivity.instructions ??
+        "Select the HCE phonemes in the correct order and submit your guess."
+    );
+
+    setHint(selectedActivity.hint ?? "");
+
+    if (
+      selectedActivity.numberOfGuesses !== null &&
+      selectedActivity.numberOfGuesses > 0
+    ) {
+      setNumberOfGuesses(
+        selectedActivity.numberOfGuesses
+      );
+    }
+
+    setShowHints(selectedActivity.showHints);
+
+    if (selectedActivity.wordListId) {
+      setSelectedWordListId(
+        String(selectedActivity.wordListId)
+      );
+      setSelectedWordId("");
+    }
+
+    resetGame(
+      `Loaded activity configuration "${selectedActivity.name}" from the database.`
+    );
+
+    setActivityMessage(
+      `"${selectedActivity.name}" loaded successfully from the database.`
+    );
+  }
+
+  async function refreshSavedActivities() {
+    const response = await fetch("/api/activities");
+
+    if (!response.ok) {
+      throw new Error(
+        "Failed to refresh saved activities."
+      );
+    }
+
+    const activitiesData: DatabaseActivity[] =
+      await response.json();
+
+    setSavedActivities(
+      activitiesData.filter(
+        (activity) => activity.type === "WORDLE"
+      )
+    );
+
+    return activitiesData;
+  }
+
+  async function handleSaveActivityConfiguration() {
+    const trimmedName = activityName.trim();
+
+    if (!trimmedName) {
+      setActivityMessage(
+        "Please enter an activity name before saving."
+      );
+      return;
+    }
+
+    if (
+      !Number.isInteger(numberOfGuesses) ||
+      numberOfGuesses <= 0
+    ) {
+      setActivityMessage(
+        "Please choose a valid number of guesses."
+      );
+      return;
+    }
+
+    try {
+      setSavingActivity(true);
+
+      const payload = {
+        name: trimmedName,
+        type: "WORDLE",
+        difficulty: difficulty.toUpperCase(),
+        instructions: instructions.trim() || null,
+        hint: hint.trim() || null,
+        numberOfGuesses,
+        gridRows: null,
+        gridColumns: null,
+        showHints,
+        wordListId: selectedWordListId
+          ? Number(selectedWordListId)
+          : null,
+      };
+
+      const isEditing = Boolean(selectedActivityId);
+
+      const response = await fetch(
+        isEditing
+          ? `/api/activities/${selectedActivityId}`
+          : "/api/activities",
+        {
+          method: isEditing ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setActivityMessage(
+          data.error ??
+            "Failed to save activity configuration."
+        );
+        return;
+      }
+
+      await refreshSavedActivities();
+
+      setSelectedActivityId(String(data.id));
+      setActivityName(data.name);
+
+      setActivityMessage(
+        isEditing
+          ? `"${data.name}" updated successfully.`
+          : `"${data.name}" saved successfully.`
+      );
+    } catch (error) {
+      console.error(
+        "Failed to save Wordle activity configuration:",
+        error
+      );
+
+      setActivityMessage(
+        "Unable to save activity configuration."
+      );
+    } finally {
+      setSavingActivity(false);
+    }
+  }
+
+  function handleNewActivityConfiguration() {
+    setSelectedActivityId("");
+    setActivityName("");
+    setActivityMessage(
+      "Enter a new activity name, choose the settings, then select Save Activity."
     );
   }
 
@@ -607,6 +856,8 @@ export default function WordlePage() {
       escapeHtml(englishWord);
 
     const safeHint = escapeHtml(hint);
+    const safeInstructions =
+      escapeHtml(instructions);
 
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
@@ -819,7 +1070,7 @@ export default function WordlePage() {
     <h1>Phoneme Wordle</h1>
 
     <p class="description">
-      Select the HCE phonemes in the correct order and submit your guess.
+      ${safeInstructions}
     </p>
 
     <span class="badge">
@@ -1296,6 +1547,110 @@ export default function WordlePage() {
           </p>
 
           <div className="mt-6 space-y-5">
+            {/* Database activity configuration */}
+            <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+              <h3 className="font-semibold text-slate-900">
+                Activity Configuration
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-600">
+                Load, create or update Wordle settings stored in the database.
+              </p>
+
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label
+                    htmlFor="saved-activity"
+                    className="mb-2 block text-sm font-medium text-slate-900"
+                  >
+                    Saved Activity
+                  </label>
+
+                  <select
+                    id="saved-activity"
+                    value={selectedActivityId}
+                    onChange={(event) =>
+                      handleSavedActivitySelection(
+                        event.target.value
+                      )
+                    }
+                    disabled={databaseLoading}
+                    className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
+                  >
+                    <option value="">
+                      New Activity Configuration
+                    </option>
+
+                    {savedActivities.map((activity) => (
+                      <option
+                        key={activity.id}
+                        value={activity.id}
+                      >
+                        {activity.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="activity-name"
+                    className="mb-2 block text-sm font-medium text-slate-900"
+                  >
+                    Activity Name
+                  </label>
+
+                  <input
+                    id="activity-name"
+                    type="text"
+                    value={activityName}
+                    onChange={(event) =>
+                      setActivityName(
+                        event.target.value
+                      )
+                    }
+                    placeholder="e.g. Animal Words Wordle"
+                    className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={handleSaveActivityConfiguration}
+                    disabled={savingActivity}
+                    className="flex-1 rounded-lg bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {savingActivity
+                      ? "Saving..."
+                      : selectedActivityId
+                        ? "Update Activity"
+                        : "Save Activity"}
+                  </button>
+
+                  {selectedActivityId && (
+                    <button
+                      type="button"
+                      onClick={handleNewActivityConfiguration}
+                      className="flex-1 rounded-lg border border-indigo-300 bg-white px-4 py-3 font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                    >
+                      New Activity
+                    </button>
+                  )}
+                </div>
+
+                <p
+                  className="text-sm text-indigo-700"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {databaseLoading
+                    ? "Loading activity configurations..."
+                    : activityMessage}
+                </p>
+              </div>
+            </div>
+
             {/* Database word selection */}
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
               <h3 className="font-semibold text-slate-900">
@@ -1437,6 +1792,26 @@ export default function WordlePage() {
                   )
                 }
                 placeholder="Thing"
+                className="w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+
+            {/* Instructions */}
+            <div>
+              <label
+                htmlFor="instructions"
+                className="mb-2 block font-medium text-slate-900"
+              >
+                Instructions
+              </label>
+
+              <textarea
+                id="instructions"
+                value={instructions}
+                onChange={(event) =>
+                  setInstructions(event.target.value)
+                }
+                rows={3}
                 className="w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
             </div>
@@ -1602,6 +1977,10 @@ export default function WordlePage() {
               <h3 className="mt-2 text-xl font-bold text-slate-900">
                 Select the Correct Phonemes
               </h3>
+
+              <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
+                {instructions}
+              </p>
 
               <p className="mt-2 text-sm text-slate-500">
                 {previewColumns} phoneme
