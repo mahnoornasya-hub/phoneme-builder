@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+*.db
+*.db-journal
+npm-debug.log*
+.vscode
