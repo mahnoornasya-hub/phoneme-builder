@@ -13,6 +13,26 @@ type Phoneme = {
   group: "Consonants" | "Vowels";
 };
 
+type DatabasePhoneme = {
+  id: number;
+  symbol: string;
+  position: number;
+};
+
+type DatabaseWord = {
+  id: number;
+  englishWord: string;
+  hint: string | null;
+  phonemes: DatabasePhoneme[];
+};
+
+type DatabaseWordList = {
+  id: number;
+  name: string;
+  description: string | null;
+  words: DatabaseWord[];
+};
+
 const MAX_WORDS = 10;
 
 const DIRECTIONS: Direction[] = [
@@ -274,6 +294,18 @@ function escapeHtml(value: string) {
 }
 
 export default function WordSearchPage() {
+  const [savedWordLists, setSavedWordLists] =
+    useState<DatabaseWordList[]>([]);
+
+  const [selectedWordListId, setSelectedWordListId] =
+    useState("");
+
+  const [databaseLoading, setDatabaseLoading] =
+    useState(true);
+
+  const [databaseMessage, setDatabaseMessage] =
+    useState("");
+
   const [title, setTitle] = useState(
     "Phoneme Word Search"
   );
@@ -326,6 +358,44 @@ export default function WordSearchPage() {
     );
 
   useEffect(() => {
+    async function loadSavedWordLists() {
+      try {
+        setDatabaseLoading(true);
+
+        const response = await fetch("/api/word-lists");
+
+        if (!response.ok) {
+          throw new Error(
+            "Failed to load saved Word Lists."
+          );
+        }
+
+        const data: DatabaseWordList[] =
+          await response.json();
+
+        setSavedWordLists(data);
+
+        setDatabaseMessage(
+          "Saved Word Lists loaded from the database."
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load Word Search database data:",
+          error
+        );
+
+        setDatabaseMessage(
+          "Unable to load saved Word Lists."
+        );
+      } finally {
+        setDatabaseLoading(false);
+      }
+    }
+
+    loadSavedWordLists();
+  }, []);
+
+  useEffect(() => {
     setGrid(
       generateGrid(
         wordList,
@@ -339,6 +409,82 @@ export default function WordSearchPage() {
     columns,
     gridVersion,
   ]);
+
+  function handleSavedWordListSelection(
+    value: string
+  ) {
+    setSelectedWordListId(value);
+
+    if (!value) {
+      setDatabaseMessage(
+        "Select a saved Word List to load its phoneme sequences."
+      );
+      return;
+    }
+
+    const selectedWordList =
+      savedWordLists.find(
+        (wordList) =>
+          wordList.id === Number(value)
+      );
+
+    if (!selectedWordList) {
+      setDatabaseMessage(
+        "The selected Word List could not be found."
+      );
+      return;
+    }
+
+    const databaseSequences =
+      selectedWordList.words
+        .map((word) => {
+          const orderedPhonemes = [
+            ...word.phonemes,
+          ].sort(
+            (firstPhoneme, secondPhoneme) =>
+              firstPhoneme.position -
+              secondPhoneme.position
+          );
+
+          return orderedPhonemes
+            .map((phoneme) => phoneme.symbol)
+            .filter(Boolean)
+            .join(" ");
+        })
+        .filter(Boolean)
+        .slice(0, MAX_WORDS);
+
+    if (databaseSequences.length === 0) {
+      setWords("");
+      setDatabaseMessage(
+        `"${selectedWordList.name}" does not contain any saved words with phonemes.`
+      );
+      return;
+    }
+
+    setWords(databaseSequences.join("\n"));
+
+    setGridVersion(
+      (currentVersion) =>
+        currentVersion + 1
+    );
+
+    setDatabaseMessage(
+      `"${selectedWordList.name}" loaded from the database with ${databaseSequences.length} ${
+        databaseSequences.length === 1
+          ? "word"
+          : "words"
+      }.`
+    );
+
+    setMessage(
+      `Loaded ${databaseSequences.length} saved phoneme ${
+        databaseSequences.length === 1
+          ? "sequence"
+          : "sequences"
+      } from "${selectedWordList.name}".`
+    );
+  }
 
   function appendPhoneme(
     phoneme: string
@@ -835,6 +981,66 @@ export default function WordSearchPage() {
           </p>
 
           <div className="mt-6 space-y-5">
+            {/* Database Word List selection */}
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <h3 className="font-semibold text-slate-900">
+                Load Saved Word List
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-600">
+                Select a Word List stored in the database. Its saved words and phonemes will be used to generate the puzzle.
+              </p>
+
+              <div className="mt-4">
+                <label
+                  htmlFor="saved-word-list"
+                  className="mb-2 block text-sm font-medium text-slate-900"
+                >
+                  Saved Word List
+                </label>
+
+                <select
+                  id="saved-word-list"
+                  value={selectedWordListId}
+                  onChange={(event) =>
+                    handleSavedWordListSelection(
+                      event.target.value
+                    )
+                  }
+                  disabled={databaseLoading}
+                  className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
+                >
+                  <option value="">
+                    Select a saved Word List
+                  </option>
+
+                  {savedWordLists.map(
+                    (wordList) => (
+                      <option
+                        key={wordList.id}
+                        value={wordList.id}
+                      >
+                        {wordList.name} ({wordList.words.length}{" "}
+                        {wordList.words.length === 1
+                          ? "word"
+                          : "words"})
+                      </option>
+                    )
+                  )}
+                </select>
+
+                <p
+                  className="mt-3 text-sm text-blue-700"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {databaseLoading
+                    ? "Loading database..."
+                    : databaseMessage}
+                </p>
+              </div>
+            </div>
+
             {/* Title */}
             <div>
               <label

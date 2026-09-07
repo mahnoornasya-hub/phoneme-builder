@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type TileStatus =
   | "correct"
@@ -13,6 +13,30 @@ type Phoneme = {
   label: string;
   example: string;
   group: "Consonants" | "Vowels";
+};
+
+type DatabasePhoneme = {
+  id: number;
+  symbol: string;
+  position: number;
+};
+
+type DatabaseWord = {
+  id: number;
+  englishWord: string;
+  hint: string | null;
+  wordListId: number | null;
+  wordList: {
+    id: number;
+    name: string;
+  } | null;
+  phonemes: DatabasePhoneme[];
+};
+
+type WordList = {
+  id: number;
+  name: string;
+  description: string | null;
 };
 
 const phonemeKeyboard: Phoneme[] = [
@@ -111,6 +135,24 @@ function escapeHtml(value: string) {
 }
 
 export default function WordlePage() {
+  const [savedWords, setSavedWords] =
+    useState<DatabaseWord[]>([]);
+
+  const [wordLists, setWordLists] =
+    useState<WordList[]>([]);
+
+  const [selectedWordListId, setSelectedWordListId] =
+    useState("");
+
+  const [selectedWordId, setSelectedWordId] =
+    useState("");
+
+  const [databaseLoading, setDatabaseLoading] =
+    useState(true);
+
+  const [databaseMessage, setDatabaseMessage] =
+    useState("");
+
   const [phonemeWord, setPhonemeWord] =
     useState("θ ɪ ŋ");
 
@@ -142,6 +184,52 @@ export default function WordlePage() {
 
   const [gameFinished, setGameFinished] =
     useState(false);
+
+  useEffect(() => {
+    async function loadDatabaseData() {
+      try {
+        setDatabaseLoading(true);
+
+        const [wordsResponse, wordListsResponse] =
+          await Promise.all([
+            fetch("/api/words"),
+            fetch("/api/word-lists"),
+          ]);
+
+        if (!wordsResponse.ok || !wordListsResponse.ok) {
+          throw new Error(
+            "Failed to load saved database data."
+          );
+        }
+
+        const wordsData: DatabaseWord[] =
+          await wordsResponse.json();
+
+        const wordListsData: WordList[] =
+          await wordListsResponse.json();
+
+        setSavedWords(wordsData);
+        setWordLists(wordListsData);
+
+        setDatabaseMessage(
+          "Saved words loaded from the database."
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load Wordle database data:",
+          error
+        );
+
+        setDatabaseMessage(
+          "Unable to load saved words."
+        );
+      } finally {
+        setDatabaseLoading(false);
+      }
+    }
+
+    loadDatabaseData();
+  }, []);
 
   const previewPhonemes =
     getPreviewPhonemes(phonemeWord);
@@ -182,6 +270,71 @@ export default function WordlePage() {
 
     resetGame(
       "The number of guesses changed. The preview game has been reset."
+    );
+  }
+
+  const filteredSavedWords =
+    selectedWordListId
+      ? savedWords.filter(
+          (word) =>
+            word.wordListId === Number(selectedWordListId)
+        )
+      : savedWords;
+
+  function handleWordListSelection(value: string) {
+    setSelectedWordListId(value);
+    setSelectedWordId("");
+
+    setDatabaseMessage(
+      value
+        ? "Word List selected. Choose a saved word."
+        : "Showing words from all Word Lists."
+    );
+  }
+
+  function handleSavedWordSelection(value: string) {
+    setSelectedWordId(value);
+
+    if (!value) {
+      return;
+    }
+
+    const selectedWord = savedWords.find(
+      (word) => word.id === Number(value)
+    );
+
+    if (!selectedWord) {
+      setDatabaseMessage(
+        "The selected word could not be found."
+      );
+      return;
+    }
+
+    const orderedPhonemes = [...selectedWord.phonemes].sort(
+      (firstPhoneme, secondPhoneme) =>
+        firstPhoneme.position - secondPhoneme.position
+    );
+
+    setEnglishWord(selectedWord.englishWord);
+    setPhonemeWord(
+      orderedPhonemes
+        .map((phoneme) => phoneme.symbol)
+        .join(" ")
+    );
+    setHint(selectedWord.hint ?? "");
+
+    if (selectedWord.wordListId) {
+      setSelectedWordListId(
+        String(selectedWord.wordListId)
+      );
+    }
+
+    resetGame(
+      `Loaded "${selectedWord.englishWord}" from the database.`
+    );
+
+    setDatabaseMessage(
+      `"${selectedWord.englishWord}" loaded successfully from the database.`
     );
   }
 
@@ -1143,6 +1296,100 @@ export default function WordlePage() {
           </p>
 
           <div className="mt-6 space-y-5">
+            {/* Database word selection */}
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <h3 className="font-semibold text-slate-900">
+                Load Saved Word
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-600">
+                Select a Word List and word stored in the database.
+              </p>
+
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label
+                    htmlFor="saved-word-list"
+                    className="mb-2 block text-sm font-medium text-slate-900"
+                  >
+                    Word List
+                  </label>
+
+                  <select
+                    id="saved-word-list"
+                    value={selectedWordListId}
+                    onChange={(event) =>
+                      handleWordListSelection(
+                        event.target.value
+                      )
+                    }
+                    disabled={databaseLoading}
+                    className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
+                  >
+                    <option value="">
+                      All Word Lists
+                    </option>
+
+                    {wordLists.map((wordList) => (
+                      <option
+                        key={wordList.id}
+                        value={wordList.id}
+                      >
+                        {wordList.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="saved-word"
+                    className="mb-2 block text-sm font-medium text-slate-900"
+                  >
+                    Saved Word
+                  </label>
+
+                  <select
+                    id="saved-word"
+                    value={selectedWordId}
+                    onChange={(event) =>
+                      handleSavedWordSelection(
+                        event.target.value
+                      )
+                    }
+                    disabled={
+                      databaseLoading ||
+                      filteredSavedWords.length === 0
+                    }
+                    className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
+                  >
+                    <option value="">
+                      Select a Saved Word
+                    </option>
+
+                    {filteredSavedWords.map((word) => (
+                      <option
+                        key={word.id}
+                        value={word.id}
+                      >
+                        {word.englishWord}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <p
+                  className="text-sm text-blue-700"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {databaseLoading
+                    ? "Loading database..."
+                    : databaseMessage}
+                </p>
+              </div>
+            </div>
+
             {/* Phoneme word */}
             <div>
               <label
