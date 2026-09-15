@@ -17,6 +17,13 @@ enum Difficulty {
   HARD
 }
 
+enum UsageEventType {
+  PAGE_VIEW
+  ACTIVITY_CREATED
+  GENERATION_SUCCESS
+  GENERATION_FAILED
+}
+
 model WordList {
   id          Int      @id @default(autoincrement())
   name        String
@@ -89,4 +96,29 @@ model ActivityWord {
   word     Word     @relation(fields: [wordId], references: [id], onDelete: Cascade)
 
   @@id([activityId, wordId])
+}
+
+// Assessment 3 operational and reporting data
+model UsageEvent {
+  id Int @id @default(autoincrement())
+
+  eventType UsageEventType
+
+  // WORDLE or WORD_SEARCH when relevant
+  activityType ActivityType?
+
+  // For example: /wordle, /word-search
+  page String?
+
+  // Used for average time-on-page reporting
+  durationSeconds Int?
+
+  // Optional information about an event or error
+  message String?
+
+  createdAt DateTime @default(now())
+
+  @@index([eventType])
+  @@index([activityType])
+  @@index([createdAt])
 }

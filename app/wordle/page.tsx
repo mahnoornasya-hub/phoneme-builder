@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type TileStatus =
   | "correct"
@@ -153,6 +153,9 @@ function escapeHtml(value: string) {
 }
 
 export default function WordlePage() {
+  const pageStartTimeRef = useRef<number>(Date.now());
+  const pageVisitRecordedRef = useRef(false);
+
   const [savedActivities, setSavedActivities] =
     useState<DatabaseActivity[]>([]);
 
@@ -222,6 +225,113 @@ export default function WordlePage() {
 
   const [gameFinished, setGameFinished] =
     useState(false);
+
+  async function recordUsageEvent(
+    eventType:
+      | "PAGE_VIEW"
+      | "ACTIVITY_CREATED"
+      | "GENERATION_SUCCESS"
+      | "GENERATION_FAILED",
+    message?: string,
+    durationSeconds?: number
+  ) {
+    try {
+      const response = await fetch("/api/usage-events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          eventType,
+          activityType: "WORDLE",
+          page: "/wordle",
+          durationSeconds,
+          message,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error(
+          "Failed to record Wordle usage event:",
+          await response.text()
+        );
+      }
+    } catch (error) {
+      // Usage tracking must never stop the builder from working.
+      console.error("Failed to record Wordle usage event:", error);
+    }
+  }
+
+  useEffect(() => {
+    pageStartTimeRef.current = Date.now();
+    pageVisitRecordedRef.current = false;
+
+    function recordPageVisit() {
+      if (pageVisitRecordedRef.current) {
+        return;
+      }
+
+      const durationSeconds = Math.round(
+        (Date.now() - pageStartTimeRef.current) / 1000
+      );
+
+      // In development, React Strict Mode can mount and immediately
+      // unmount a component once. Ignore those near-instant visits so they
+      // do not create false 0-second PAGE_VIEW records.
+      if (durationSeconds < 2) {
+        return;
+      }
+
+      pageVisitRecordedRef.current = true;
+
+      // keepalive allows the request to finish while the page is being hidden
+      // or unloaded, which makes time-on-page tracking more reliable.
+      void fetch("/api/usage-events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          eventType: "PAGE_VIEW",
+          activityType: "WORDLE",
+          page: "/wordle",
+          durationSeconds,
+          message: "Wordle builder page viewed.",
+        }),
+        keepalive: true,
+      }).catch((error) => {
+        console.error("Failed to record Wordle page time:", error);
+      });
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        recordPageVisit();
+      } else if (document.visibilityState === "visible") {
+        pageStartTimeRef.current = Date.now();
+        pageVisitRecordedRef.current = false;
+      }
+    }
+
+    function handlePageHide() {
+      recordPageVisit();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+
+    return () => {
+      // Next.js client-side navigation does not always fire pagehide, so
+      // record the completed visit when this page component unmounts too.
+      recordPageVisit();
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, []);
 
   useEffect(() => {
     async function loadDatabaseData() {
@@ -500,6 +610,13 @@ export default function WordlePage() {
           ? `"${data.name}" updated successfully.`
           : `"${data.name}" saved successfully.`
       );
+
+      if (!isEditing) {
+        void recordUsageEvent(
+          "ACTIVITY_CREATED",
+          `Wordle activity "${data.name}" created.`
+        );
+      }
     } catch (error) {
       console.error(
         "Failed to save Wordle activity configuration:",
@@ -587,33 +704,45 @@ export default function WordlePage() {
     );
   }
 
-  function handleGeneratePreview() {
+  async function handleGeneratePreview() {
     if (!phonemeWord.trim()) {
-      setPreviewMessage(
-        "Please enter a phoneme word."
+      setPreviewMessage("Please enter a phoneme word.");
+      await recordUsageEvent(
+        "GENERATION_FAILED",
+        "Wordle generation failed: phoneme word was empty."
       );
       return;
     }
 
     if (!englishWord.trim()) {
-      setPreviewMessage(
-        "Please enter the English equivalence."
+      setPreviewMessage("Please enter the English equivalence.");
+      await recordUsageEvent(
+        "GENERATION_FAILED",
+        "Wordle generation failed: English equivalence was empty."
       );
       return;
     }
 
-    const phonemes =
-      getPreviewPhonemes(phonemeWord);
+    const phonemes = getPreviewPhonemes(phonemeWord);
 
     if (phonemes.length === 0) {
       setPreviewMessage(
         "Please enter HCE phonemes separated by spaces. Example: θ ɪ ŋ"
+      );
+      await recordUsageEvent(
+        "GENERATION_FAILED",
+        "Wordle generation failed: no valid HCE phonemes were provided."
       );
       return;
     }
 
     resetGame(
       `Preview generated for ${phonemeWord} — ${englishWord}.`
+    );
+
+    await recordUsageEvent(
+      "GENERATION_SUCCESS",
+      `Wordle preview generated for ${englishWord.trim()}.`
     );
   }
 
