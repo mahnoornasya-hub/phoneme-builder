@@ -13,6 +13,44 @@ type Phoneme = {
   group: "Consonants" | "Vowels";
 };
 
+type DatabasePhoneme = {
+  id: number;
+  symbol: string;
+  position: number;
+};
+
+type DatabaseWord = {
+  id: number;
+  englishWord: string;
+  hint: string | null;
+  phonemes: DatabasePhoneme[];
+};
+
+type DatabaseWordList = {
+  id: number;
+  name: string;
+  description: string | null;
+  words: DatabaseWord[];
+};
+
+type DatabaseActivity = {
+  id: number;
+  name: string;
+  type: "WORDLE" | "WORD_SEARCH";
+  difficulty: "EASY" | "MEDIUM" | "HARD";
+  instructions: string | null;
+  hint: string | null;
+  numberOfGuesses: number | null;
+  gridRows: number | null;
+  gridColumns: number | null;
+  showHints: boolean;
+  wordListId: number | null;
+  wordList: {
+    id: number;
+    name: string;
+  } | null;
+};
+
 const MAX_WORDS = 10;
 
 const DIRECTIONS: Direction[] = [
@@ -274,6 +312,39 @@ function escapeHtml(value: string) {
 }
 
 export default function WordSearchPage() {
+  const [savedActivities, setSavedActivities] =
+    useState<DatabaseActivity[]>([]);
+
+  const [selectedActivityId, setSelectedActivityId] =
+    useState("");
+
+  const [activityName, setActivityName] =
+    useState("");
+
+  const [difficulty, setDifficulty] =
+    useState("Easy");
+
+  const [showHints, setShowHints] =
+    useState(true);
+
+  const [savingActivity, setSavingActivity] =
+    useState(false);
+
+  const [activityMessage, setActivityMessage] =
+    useState("");
+
+  const [savedWordLists, setSavedWordLists] =
+    useState<DatabaseWordList[]>([]);
+
+  const [selectedWordListId, setSelectedWordListId] =
+    useState("");
+
+  const [databaseLoading, setDatabaseLoading] =
+    useState(true);
+
+  const [databaseMessage, setDatabaseMessage] =
+    useState("");
+
   const [title, setTitle] = useState(
     "Phoneme Word Search"
   );
@@ -326,6 +397,67 @@ export default function WordSearchPage() {
     );
 
   useEffect(() => {
+    async function loadSavedWordLists() {
+      try {
+        setDatabaseLoading(true);
+
+        const [
+          wordListsResponse,
+          activitiesResponse,
+        ] = await Promise.all([
+          fetch("/api/word-lists"),
+          fetch("/api/activities"),
+        ]);
+
+        if (
+          !wordListsResponse.ok ||
+          !activitiesResponse.ok
+        ) {
+          throw new Error(
+            "Failed to load saved database data."
+          );
+        }
+
+        const data: DatabaseWordList[] =
+          await wordListsResponse.json();
+
+        const activitiesData: DatabaseActivity[] =
+          await activitiesResponse.json();
+
+        setSavedWordLists(data);
+
+        setSavedActivities(
+          activitiesData.filter(
+            (activity) =>
+              activity.type === "WORD_SEARCH"
+          )
+        );
+
+        setActivityMessage(
+          "Saved Word Search activity configurations loaded from the database."
+        );
+
+        setDatabaseMessage(
+          "Saved Word Lists loaded from the database."
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load Word Search database data:",
+          error
+        );
+
+        setDatabaseMessage(
+          "Unable to load saved Word Lists."
+        );
+      } finally {
+        setDatabaseLoading(false);
+      }
+    }
+
+    loadSavedWordLists();
+  }, []);
+
+  useEffect(() => {
     setGrid(
       generateGrid(
         wordList,
@@ -339,6 +471,300 @@ export default function WordSearchPage() {
     columns,
     gridVersion,
   ]);
+
+  function formatDifficulty(
+    value: DatabaseActivity["difficulty"]
+  ) {
+    return (
+      value.charAt(0) +
+      value.slice(1).toLowerCase()
+    );
+  }
+
+  function loadWordListById(
+    wordListId: number
+  ) {
+    const selectedWordList =
+      savedWordLists.find(
+        (wordList) =>
+          wordList.id === wordListId
+      );
+
+    if (!selectedWordList) {
+      setDatabaseMessage(
+        "The selected Word List could not be found."
+      );
+      return false;
+    }
+
+    const databaseSequences =
+      selectedWordList.words
+        .map((word) => {
+          const orderedPhonemes = [
+            ...word.phonemes,
+          ].sort(
+            (firstPhoneme, secondPhoneme) =>
+              firstPhoneme.position -
+              secondPhoneme.position
+          );
+
+          return orderedPhonemes
+            .map((phoneme) => phoneme.symbol)
+            .filter(Boolean)
+            .join(" ");
+        })
+        .filter(Boolean)
+        .slice(0, MAX_WORDS);
+
+    if (databaseSequences.length === 0) {
+      setWords("");
+      setDatabaseMessage(
+        `"${selectedWordList.name}" does not contain any saved words with phonemes.`
+      );
+      return false;
+    }
+
+    setSelectedWordListId(
+      String(selectedWordList.id)
+    );
+
+    setWords(databaseSequences.join("\n"));
+
+    setGridVersion(
+      (currentVersion) =>
+        currentVersion + 1
+    );
+
+    setDatabaseMessage(
+      `"${selectedWordList.name}" loaded from the database with ${databaseSequences.length} ${
+        databaseSequences.length === 1
+          ? "word"
+          : "words"
+      }.`
+    );
+
+    setMessage(
+      `Loaded ${databaseSequences.length} saved phoneme ${
+        databaseSequences.length === 1
+          ? "sequence"
+          : "sequences"
+      } from "${selectedWordList.name}".`
+    );
+
+    return true;
+  }
+
+  function handleSavedActivitySelection(
+    value: string
+  ) {
+    setSelectedActivityId(value);
+
+    if (!value) {
+      setActivityName("");
+      setActivityMessage(
+        "Create a new Word Search activity or select a saved one."
+      );
+      return;
+    }
+
+    const selectedActivity =
+      savedActivities.find(
+        (activity) =>
+          activity.id === Number(value)
+      );
+
+    if (!selectedActivity) {
+      setActivityMessage(
+        "The selected activity could not be found."
+      );
+      return;
+    }
+
+    setActivityName(selectedActivity.name);
+    setTitle(selectedActivity.name);
+
+    setInstructions(
+      selectedActivity.instructions ??
+        "Find and circle all the hidden phoneme sequences."
+    );
+
+    setDifficulty(
+      formatDifficulty(
+        selectedActivity.difficulty
+      )
+    );
+
+    setShowHints(selectedActivity.showHints);
+
+    if (
+      selectedActivity.gridRows !== null &&
+      selectedActivity.gridRows > 0
+    ) {
+      setRows(selectedActivity.gridRows);
+    }
+
+    if (
+      selectedActivity.gridColumns !== null &&
+      selectedActivity.gridColumns > 0
+    ) {
+      setColumns(selectedActivity.gridColumns);
+    }
+
+    if (selectedActivity.wordListId) {
+      loadWordListById(
+        selectedActivity.wordListId
+      );
+    }
+
+    setActivityMessage(
+      `"${selectedActivity.name}" loaded successfully from the database.`
+    );
+  }
+
+  async function refreshSavedActivities() {
+    const response =
+      await fetch("/api/activities");
+
+    if (!response.ok) {
+      throw new Error(
+        "Failed to refresh saved activities."
+      );
+    }
+
+    const activitiesData: DatabaseActivity[] =
+      await response.json();
+
+    setSavedActivities(
+      activitiesData.filter(
+        (activity) =>
+          activity.type === "WORD_SEARCH"
+      )
+    );
+  }
+
+  async function handleSaveActivityConfiguration() {
+    const trimmedName =
+      activityName.trim();
+
+    if (!trimmedName) {
+      setActivityMessage(
+        "Please enter an activity name before saving."
+      );
+      return;
+    }
+
+    if (
+      !Number.isInteger(rows) ||
+      !Number.isInteger(columns) ||
+      rows <= 0 ||
+      columns <= 0
+    ) {
+      setActivityMessage(
+        "Please choose valid grid dimensions."
+      );
+      return;
+    }
+
+    try {
+      setSavingActivity(true);
+
+      const payload = {
+        name: trimmedName,
+        type: "WORD_SEARCH",
+        difficulty:
+          difficulty.toUpperCase(),
+        instructions:
+          instructions.trim() || null,
+        hint: null,
+        numberOfGuesses: null,
+        gridRows: rows,
+        gridColumns: columns,
+        showHints,
+        wordListId:
+          selectedWordListId
+            ? Number(selectedWordListId)
+            : null,
+      };
+
+      const isEditing =
+        Boolean(selectedActivityId);
+
+      const response = await fetch(
+        isEditing
+          ? `/api/activities/${selectedActivityId}`
+          : "/api/activities",
+        {
+          method: isEditing
+            ? "PUT"
+            : "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        setActivityMessage(
+          data.error ??
+            "Failed to save activity configuration."
+        );
+        return;
+      }
+
+      await refreshSavedActivities();
+
+      setSelectedActivityId(
+        String(data.id)
+      );
+      setActivityName(data.name);
+      setTitle(data.name);
+
+      setActivityMessage(
+        isEditing
+          ? `"${data.name}" updated successfully.`
+          : `"${data.name}" saved successfully.`
+      );
+    } catch (error) {
+      console.error(
+        "Failed to save Word Search activity configuration:",
+        error
+      );
+
+      setActivityMessage(
+        "Unable to save activity configuration."
+      );
+    } finally {
+      setSavingActivity(false);
+    }
+  }
+
+  function handleNewActivityConfiguration() {
+    setSelectedActivityId("");
+    setActivityName("");
+    setActivityMessage(
+      "Enter a new activity name, choose the settings, then select Save Activity."
+    );
+  }
+
+  function handleSavedWordListSelection(
+    value: string
+  ) {
+    setSelectedWordListId(value);
+
+    if (!value) {
+      setDatabaseMessage(
+        "Select a saved Word List to load its phoneme sequences."
+      );
+      return;
+    }
+
+    loadWordListById(Number(value));
+  }
 
   function appendPhoneme(
     phoneme: string
@@ -835,6 +1261,224 @@ export default function WordSearchPage() {
           </p>
 
           <div className="mt-6 space-y-5">
+            {/* Database Activity configuration */}
+            <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+              <h3 className="font-semibold text-slate-900">
+                Activity Configuration
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-600">
+                Load, create or update Word Search settings stored in the database.
+              </p>
+
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label
+                    htmlFor="saved-activity"
+                    className="mb-2 block text-sm font-medium text-slate-900"
+                  >
+                    Saved Activity
+                  </label>
+
+                  <select
+                    id="saved-activity"
+                    value={selectedActivityId}
+                    onChange={(event) =>
+                      handleSavedActivitySelection(
+                        event.target.value
+                      )
+                    }
+                    disabled={databaseLoading}
+                    className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
+                  >
+                    <option value="">
+                      New Activity Configuration
+                    </option>
+
+                    {savedActivities.map(
+                      (activity) => (
+                        <option
+                          key={activity.id}
+                          value={activity.id}
+                        >
+                          {activity.name}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="activity-name"
+                    className="mb-2 block text-sm font-medium text-slate-900"
+                  >
+                    Activity Name
+                  </label>
+
+                  <input
+                    id="activity-name"
+                    type="text"
+                    value={activityName}
+                    onChange={(event) =>
+                      setActivityName(
+                        event.target.value
+                      )
+                    }
+                    placeholder="e.g. Animal Words Search"
+                    className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="activity-difficulty"
+                    className="mb-2 block text-sm font-medium text-slate-900"
+                  >
+                    Difficulty
+                  </label>
+
+                  <select
+                    id="activity-difficulty"
+                    value={difficulty}
+                    onChange={(event) =>
+                      setDifficulty(
+                        event.target.value
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  >
+                    <option value="Easy">
+                      Easy
+                    </option>
+                    <option value="Medium">
+                      Medium
+                    </option>
+                    <option value="Hard">
+                      Hard
+                    </option>
+                  </select>
+                </div>
+
+                <label className="flex items-start gap-3 rounded-lg border border-indigo-200 bg-white p-3">
+                  <input
+                    type="checkbox"
+                    checked={showHints}
+                    onChange={(event) =>
+                      setShowHints(
+                        event.target.checked
+                      )
+                    }
+                    className="mt-1 h-4 w-4"
+                  />
+
+                  <span>
+                    <span className="block text-sm font-medium text-slate-900">
+                      Show Hints
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      Store the activity hint-display preference.
+                    </span>
+                  </span>
+                </label>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={handleSaveActivityConfiguration}
+                    disabled={savingActivity}
+                    className="flex-1 rounded-lg bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {savingActivity
+                      ? "Saving..."
+                      : selectedActivityId
+                        ? "Update Activity"
+                        : "Save Activity"}
+                  </button>
+
+                  {selectedActivityId && (
+                    <button
+                      type="button"
+                      onClick={handleNewActivityConfiguration}
+                      className="flex-1 rounded-lg border border-indigo-300 bg-white px-4 py-3 font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                    >
+                      New Activity
+                    </button>
+                  )}
+                </div>
+
+                <p
+                  className="text-sm text-indigo-700"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {databaseLoading
+                    ? "Loading activity configurations..."
+                    : activityMessage}
+                </p>
+              </div>
+            </div>
+
+            {/* Database Word List selection */}
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <h3 className="font-semibold text-slate-900">
+                Load Saved Word List
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-600">
+                Select a Word List stored in the database. Its saved words and phonemes will be used to generate the puzzle.
+              </p>
+
+              <div className="mt-4">
+                <label
+                  htmlFor="saved-word-list"
+                  className="mb-2 block text-sm font-medium text-slate-900"
+                >
+                  Saved Word List
+                </label>
+
+                <select
+                  id="saved-word-list"
+                  value={selectedWordListId}
+                  onChange={(event) =>
+                    handleSavedWordListSelection(
+                      event.target.value
+                    )
+                  }
+                  disabled={databaseLoading}
+                  className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
+                >
+                  <option value="">
+                    Select a saved Word List
+                  </option>
+
+                  {savedWordLists.map(
+                    (wordList) => (
+                      <option
+                        key={wordList.id}
+                        value={wordList.id}
+                      >
+                        {wordList.name} ({wordList.words.length}{" "}
+                        {wordList.words.length === 1
+                          ? "word"
+                          : "words"})
+                      </option>
+                    )
+                  )}
+                </select>
+
+                <p
+                  className="mt-3 text-sm text-blue-700"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {databaseLoading
+                    ? "Loading database..."
+                    : databaseMessage}
+                </p>
+              </div>
+            </div>
+
             {/* Title */}
             <div>
               <label
@@ -1099,6 +1743,10 @@ export default function WordSearchPage() {
               <p className="mt-2 text-xs text-slate-500">
                 {rows} rows × {columns} columns
               </p>
+
+              <span className="mt-3 inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+                {difficulty}
+              </span>
             </div>
 
             {/* Words */}
