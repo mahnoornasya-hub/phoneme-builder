@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Direction = {
   row: number;
@@ -312,6 +312,43 @@ function escapeHtml(value: string) {
 }
 
 export default function WordSearchPage() {
+  const pageStartTimeRef = useRef<number>(Date.now());
+  const pageViewRecordedRef = useRef(false);
+
+  async function recordUsageEvent(
+    eventType:
+      | "PAGE_VIEW"
+      | "ACTIVITY_CREATED"
+      | "GENERATION_SUCCESS"
+      | "GENERATION_FAILED",
+    message?: string,
+    durationSeconds?: number
+  ) {
+    try {
+      const response = await fetch("/api/usage-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventType,
+          activityType: "WORD_SEARCH",
+          page: "/word-search",
+          durationSeconds,
+          message,
+        }),
+        keepalive: true,
+      });
+
+      if (!response.ok) {
+        console.error(
+          "Failed to record Word Search usage event:",
+          await response.text()
+        );
+      }
+    } catch (error) {
+      console.error("Failed to record Word Search usage event:", error);
+    }
+  }
+
   const [savedActivities, setSavedActivities] =
     useState<DatabaseActivity[]>([]);
 
@@ -395,6 +432,105 @@ export default function WordSearchPage() {
       (phoneme) =>
         phoneme.group === "Vowels"
     );
+
+  useEffect(() => {
+    pageStartTimeRef.current = Date.now();
+    pageViewRecordedRef.current = false;
+
+    function recordCompletedPageVisit() {
+      if (pageViewRecordedRef.current) {
+        return;
+      }
+
+      const durationSeconds = Math.round(
+        (Date.now() - pageStartTimeRef.current) / 1000
+      );
+
+      // React Strict Mode performs an immediate setup/cleanup cycle in
+      // development. Ignore that so it does not create a false 0-second visit.
+      if (durationSeconds < 2) {
+        return;
+      }
+
+      pageViewRecordedRef.current = true;
+
+      void fetch("/api/usage-events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          eventType: "PAGE_VIEW",
+          activityType: "WORD_SEARCH",
+          page: "/word-search",
+          durationSeconds,
+          message: "Word Search builder page viewed.",
+        }),
+        keepalive: true,
+      }).catch((error) => {
+        console.error(
+          "Failed to record Word Search page time:",
+          error
+        );
+      });
+    }
+
+    function handleDocumentClick(event: MouseEvent) {
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const link = target.closest("a");
+
+      if (!link) {
+        return;
+      }
+
+      const href = link.getAttribute("href");
+
+      if (
+        !href ||
+        href.startsWith("#") ||
+        href.startsWith("mailto:") ||
+        href.startsWith("tel:")
+      ) {
+        return;
+      }
+
+      // This catches Next.js client-side navigation, which does not trigger
+      // pagehide or visibilitychange.
+      recordCompletedPageVisit();
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        recordCompletedPageVisit();
+      }
+    }
+
+    function handlePageHide() {
+      recordCompletedPageVisit();
+    }
+
+    document.addEventListener("click", handleDocumentClick, true);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+
+    return () => {
+      // Fallback for any route change that unmounts this component without an
+      // anchor click. The 2-second minimum above filters Strict Mode cleanup.
+      recordCompletedPageVisit();
+
+      document.removeEventListener("click", handleDocumentClick, true);
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, []);
 
   useEffect(() => {
     async function loadSavedWordLists() {
@@ -729,6 +865,13 @@ export default function WordSearchPage() {
           ? `"${data.name}" updated successfully.`
           : `"${data.name}" saved successfully.`
       );
+
+      if (!isEditing) {
+        void recordUsageEvent(
+          "ACTIVITY_CREATED",
+          `Word Search activity "${data.name}" created.`
+        );
+      }
     } catch (error) {
       console.error(
         "Failed to save Word Search activity configuration:",
@@ -800,10 +943,15 @@ export default function WordSearchPage() {
     });
   }
 
-  function handleGeneratePreview() {
+  async function handleGeneratePreview() {
     if (!title.trim()) {
       setMessage(
         "Please enter an activity title."
+      );
+
+      await recordUsageEvent(
+        "GENERATION_FAILED",
+        "Word Search generation failed: activity title was empty."
       );
       return;
     }
@@ -811,6 +959,11 @@ export default function WordSearchPage() {
     if (wordList.length === 0) {
       setMessage(
         "Please enter at least one valid phoneme sequence."
+      );
+
+      await recordUsageEvent(
+        "GENERATION_FAILED",
+        "Word Search generation failed: no valid phoneme sequences were provided."
       );
       return;
     }
@@ -822,6 +975,11 @@ export default function WordSearchPage() {
 
     setMessage(
       "A new phoneme word-search grid has been generated."
+    );
+
+    await recordUsageEvent(
+      "GENERATION_SUCCESS",
+      `Word Search preview generated for ${title.trim()}.`
     );
   }
 

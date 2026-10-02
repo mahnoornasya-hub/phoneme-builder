@@ -14,7 +14,6 @@ export default function Header() {
   return (
     <header className="relative bg-blue-700 text-white shadow-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-
         {/* Logo and site name */}
         <Link
           href="/"
@@ -37,7 +36,6 @@ export default function Header() {
 
         {/* Right side */}
         <div className="flex items-center gap-6">
-
           {/* Desktop navigation */}
           <nav
             className="hidden items-center gap-6 md:flex"
@@ -59,9 +57,7 @@ export default function Header() {
           {/* Hamburger */}
           <button
             type="button"
-            onClick={() =>
-              setMenuOpen((current) => !current)
-            }
+            onClick={() => setMenuOpen((current) => !current)}
             className="rounded-md border border-white px-3 py-2 text-xl transition hover:bg-blue-600"
             aria-label={
               menuOpen
@@ -114,6 +110,14 @@ export default function Header() {
               className="px-5 py-3 transition hover:bg-blue-600"
             >
               Manage Words
+            </Link>
+
+            <Link
+              href="/dashboard"
+              onClick={closeMenu}
+              className="px-5 py-3 transition hover:bg-blue-600"
+            >
+              Dashboard
             </Link>
 
             <Link
