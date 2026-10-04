@@ -1,0 +1,2277 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+type TileStatus =
+  | "correct"
+  | "present"
+  | "incorrect"
+  | "empty";
+
+type Phoneme = {
+  symbol: string;
+  label: string;
+  example: string;
+  group: "Consonants" | "Vowels";
+};
+
+type DatabasePhoneme = {
+  id: number;
+  symbol: string;
+  position: number;
+};
+
+type DatabaseWord = {
+  id: number;
+  englishWord: string;
+  hint: string | null;
+  wordListId: number | null;
+  wordList: {
+    id: number;
+    name: string;
+  } | null;
+  phonemes: DatabasePhoneme[];
+};
+
+type WordList = {
+  id: number;
+  name: string;
+  description: string | null;
+};
+
+type DatabaseActivity = {
+  id: number;
+  name: string;
+  type: "WORDLE" | "WORD_SEARCH";
+  difficulty: "EASY" | "MEDIUM" | "HARD";
+  instructions: string | null;
+  hint: string | null;
+  numberOfGuesses: number | null;
+  gridRows: number | null;
+  gridColumns: number | null;
+  showHints: boolean;
+  wordListId: number | null;
+  wordList: {
+    id: number;
+    name: string;
+  } | null;
+};
+
+const phonemeKeyboard: Phoneme[] = [
+  // Consonants
+  { symbol: "p", label: "P", example: "P as in pin", group: "Consonants" },
+  { symbol: "t", label: "T", example: "T as in tin", group: "Consonants" },
+  { symbol: "k", label: "K", example: "K as in kin", group: "Consonants" },
+
+  { symbol: "b", label: "B", example: "B as in bed", group: "Consonants" },
+  { symbol: "d", label: "D", example: "D as in dog", group: "Consonants" },
+  { symbol: "ɡ", label: "G", example: "G as in gum", group: "Consonants" },
+
+  { symbol: "n", label: "N", example: "N as in net", group: "Consonants" },
+  { symbol: "m", label: "M", example: "M as in map", group: "Consonants" },
+  { symbol: "ŋ", label: "NG", example: "NG as in ring", group: "Consonants" },
+
+  { symbol: "f", label: "F", example: "F as in fan", group: "Consonants" },
+  { symbol: "s", label: "S", example: "S as in sun", group: "Consonants" },
+  { symbol: "θ", label: "TH", example: "TH as in thin", group: "Consonants" },
+  { symbol: "ʃ", label: "SH", example: "SH as in ship", group: "Consonants" },
+
+  { symbol: "v", label: "V", example: "V as in van", group: "Consonants" },
+  { symbol: "z", label: "Z", example: "Z as in zip", group: "Consonants" },
+  { symbol: "ð", label: "TH", example: "TH as in then", group: "Consonants" },
+  { symbol: "ʒ", label: "ZH", example: "ZH sound", group: "Consonants" },
+
+  { symbol: "l", label: "L", example: "L as in log", group: "Consonants" },
+  { symbol: "ɹ", label: "R", example: "R as in ring", group: "Consonants" },
+  { symbol: "w", label: "W", example: "W as in win", group: "Consonants" },
+  { symbol: "j", label: "Y", example: "Y as in yes", group: "Consonants" },
+
+  { symbol: "h", label: "H", example: "H as in hat", group: "Consonants" },
+  { symbol: "tʃ", label: "CH", example: "CH as in chin", group: "Consonants" },
+  { symbol: "dʒ", label: "J", example: "J as in jam", group: "Consonants" },
+
+  // Vowels
+  { symbol: "iː", label: "EE", example: "Long EE vowel", group: "Vowels" },
+  { symbol: "ɪ", label: "I", example: "I as in bid", group: "Vowels" },
+  { symbol: "e", label: "E", example: "E as in bed", group: "Vowels" },
+  { symbol: "eː", label: "E", example: "Long E vowel", group: "Vowels" },
+
+  { symbol: "æ", label: "A", example: "A as in bad", group: "Vowels" },
+  { symbol: "ɐ", label: "UH", example: "UH as in bud", group: "Vowels" },
+  { symbol: "ɐː", label: "AR", example: "AR as in bark", group: "Vowels" },
+  { symbol: "ɜː", label: "ER", example: "ER as in bird", group: "Vowels" },
+
+  { symbol: "ʉː", label: "OO", example: "OO as in boot", group: "Vowels" },
+  { symbol: "ɔ", label: "O", example: "O as in log", group: "Vowels" },
+  { symbol: "oː", label: "OR", example: "OR as in fork", group: "Vowels" },
+  { symbol: "ʊ", label: "OO", example: "OO as in book", group: "Vowels" },
+
+  { symbol: "æɪ", label: "AY", example: "AY as in bait", group: "Vowels" },
+  { symbol: "ɑe", label: "EYE", example: "EYE as in bike", group: "Vowels" },
+  { symbol: "oɪ", label: "OY", example: "OY as in boil", group: "Vowels" },
+  { symbol: "əʉ", label: "OH", example: "OH as in boat", group: "Vowels" },
+
+  { symbol: "æɔ", label: "OW", example: "OW vowel", group: "Vowels" },
+  { symbol: "ɪə", label: "EAR", example: "EAR as in beard", group: "Vowels" },
+  { symbol: "ə", label: "UH", example: "Schwa sound", group: "Vowels" },
+];
+
+function getPreviewPhonemes(value: string): string[] {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return [];
+  }
+
+  // Supports the original format:
+  // /θ/ /ɪ/ /ŋ/
+  const slashPhonemes = trimmedValue.match(/\/[^/]+\//g);
+
+  if (slashPhonemes && slashPhonemes.length > 0) {
+    return slashPhonemes.map((phoneme) =>
+      phoneme.replaceAll("/", "").trim()
+    );
+  }
+
+  // Lecturer format:
+  // θ ɪ ŋ
+  // b æɪ t
+  // dʒ æ m
+  return trimmedValue
+    .split(/\s+/)
+    .map((phoneme) => phoneme.trim())
+    .filter(Boolean);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+export default function WordlePage() {
+  const pageStartTimeRef = useRef<number>(Date.now());
+  const pageVisitRecordedRef = useRef(false);
+
+  const [savedActivities, setSavedActivities] =
+    useState<DatabaseActivity[]>([]);
+
+  const [selectedActivityId, setSelectedActivityId] =
+    useState("");
+
+  const [activityName, setActivityName] =
+    useState("");
+
+  const [savingActivity, setSavingActivity] =
+    useState(false);
+
+  const [activityMessage, setActivityMessage] =
+    useState("");
+
+  const [savedWords, setSavedWords] =
+    useState<DatabaseWord[]>([]);
+
+  const [wordLists, setWordLists] =
+    useState<WordList[]>([]);
+
+  const [selectedWordListId, setSelectedWordListId] =
+    useState("");
+
+  const [selectedWordId, setSelectedWordId] =
+    useState("");
+
+  const [databaseLoading, setDatabaseLoading] =
+    useState(true);
+
+  const [databaseMessage, setDatabaseMessage] =
+    useState("");
+
+  const [phonemeWord, setPhonemeWord] =
+    useState("θ ɪ ŋ");
+
+  const [englishWord, setEnglishWord] =
+    useState("Thing");
+
+  const [instructions, setInstructions] =
+    useState(
+      "Select the HCE phonemes in the correct order and submit your guess."
+    );
+
+  const [difficulty, setDifficulty] =
+    useState("Easy");
+
+  const [hint, setHint] =
+    useState("TH as in thin");
+
+  const [numberOfGuesses, setNumberOfGuesses] =
+    useState(6);
+
+  const [showHints, setShowHints] =
+    useState(true);
+
+  const [previewMessage, setPreviewMessage] =
+    useState(
+      "The preview updates automatically as you change the settings."
+    );
+
+  const [currentGuess, setCurrentGuess] =
+    useState<string[]>([]);
+
+  const [submittedGuesses, setSubmittedGuesses] =
+    useState<string[][]>([]);
+
+  const [gameFinished, setGameFinished] =
+    useState(false);
+
+  async function recordUsageEvent(
+    eventType:
+      | "PAGE_VIEW"
+      | "ACTIVITY_CREATED"
+      | "GENERATION_SUCCESS"
+      | "GENERATION_FAILED",
+    message?: string,
+    durationSeconds?: number
+  ) {
+    try {
+      const response = await fetch("/api/usage-events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          eventType,
+          activityType: "WORDLE",
+          page: "/wordle",
+          durationSeconds,
+          message,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error(
+          "Failed to record Wordle usage event:",
+          await response.text()
+        );
+      }
+    } catch (error) {
+      // Usage tracking must never stop the builder from working.
+      console.error("Failed to record Wordle usage event:", error);
+    }
+  }
+
+  useEffect(() => {
+    pageStartTimeRef.current = Date.now();
+    pageVisitRecordedRef.current = false;
+
+    function recordPageVisit() {
+      if (pageVisitRecordedRef.current) {
+        return;
+      }
+
+      const durationSeconds = Math.round(
+        (Date.now() - pageStartTimeRef.current) / 1000
+      );
+
+      // In development, React Strict Mode can mount and immediately
+      // unmount a component once. Ignore those near-instant visits so they
+      // do not create false 0-second PAGE_VIEW records.
+      if (durationSeconds < 2) {
+        return;
+      }
+
+      pageVisitRecordedRef.current = true;
+
+      // keepalive allows the request to finish while the page is being hidden
+      // or unloaded, which makes time-on-page tracking more reliable.
+      void fetch("/api/usage-events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          eventType: "PAGE_VIEW",
+          activityType: "WORDLE",
+          page: "/wordle",
+          durationSeconds,
+          message: "Wordle builder page viewed.",
+        }),
+        keepalive: true,
+      }).catch((error) => {
+        console.error("Failed to record Wordle page time:", error);
+      });
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        recordPageVisit();
+      } else if (document.visibilityState === "visible") {
+        pageStartTimeRef.current = Date.now();
+        pageVisitRecordedRef.current = false;
+      }
+    }
+
+    function handlePageHide() {
+      recordPageVisit();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+
+    return () => {
+      // Next.js client-side navigation does not always fire pagehide, so
+      // record the completed visit when this page component unmounts too.
+      recordPageVisit();
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, []);
+
+  useEffect(() => {
+    async function loadDatabaseData() {
+      try {
+        setDatabaseLoading(true);
+
+        const [
+          wordsResponse,
+          wordListsResponse,
+          activitiesResponse,
+        ] = await Promise.all([
+          fetch("/api/words"),
+          fetch("/api/word-lists"),
+          fetch("/api/activities"),
+        ]);
+
+        if (
+          !wordsResponse.ok ||
+          !wordListsResponse.ok ||
+          !activitiesResponse.ok
+        ) {
+          throw new Error(
+            "Failed to load saved database data."
+          );
+        }
+
+        const wordsData: DatabaseWord[] =
+          await wordsResponse.json();
+
+        const wordListsData: WordList[] =
+          await wordListsResponse.json();
+
+        const activitiesData: DatabaseActivity[] =
+          await activitiesResponse.json();
+
+        setSavedWords(wordsData);
+        setWordLists(wordListsData);
+        setSavedActivities(
+          activitiesData.filter(
+            (activity) => activity.type === "WORDLE"
+          )
+        );
+
+        setActivityMessage(
+          "Saved Wordle activity configurations loaded from the database."
+        );
+
+        setDatabaseMessage(
+          "Saved words loaded from the database."
+        );
+      } catch (error) {
+        console.error(
+          "Failed to load Wordle database data:",
+          error
+        );
+
+        setDatabaseMessage(
+          "Unable to load saved words."
+        );
+      } finally {
+        setDatabaseLoading(false);
+      }
+    }
+
+    loadDatabaseData();
+  }, []);
+
+  const previewPhonemes =
+    getPreviewPhonemes(phonemeWord);
+
+  const previewRows = numberOfGuesses;
+  const previewColumns = previewPhonemes.length;
+
+  const consonants = phonemeKeyboard.filter(
+    (phoneme) => phoneme.group === "Consonants"
+  );
+
+  const vowels = phonemeKeyboard.filter(
+    (phoneme) => phoneme.group === "Vowels"
+  );
+
+  function resetGame(message?: string) {
+    setCurrentGuess([]);
+    setSubmittedGuesses([]);
+    setGameFinished(false);
+
+    if (message) {
+      setPreviewMessage(message);
+    }
+  }
+
+  function handlePhonemeWordChange(value: string) {
+    setPhonemeWord(value);
+
+    resetGame(
+      "The target word changed. The preview game has been reset."
+    );
+  }
+
+  function handleNumberOfGuessesChange(
+    value: number
+  ) {
+    setNumberOfGuesses(value);
+
+    resetGame(
+      "The number of guesses changed. The preview game has been reset."
+    );
+  }
+
+  function formatDifficulty(
+    value: DatabaseActivity["difficulty"]
+  ) {
+    return (
+      value.charAt(0) +
+      value.slice(1).toLowerCase()
+    );
+  }
+
+  function handleSavedActivitySelection(
+    value: string
+  ) {
+    setSelectedActivityId(value);
+
+    if (!value) {
+      setActivityName("");
+      setActivityMessage(
+        "Select a saved Wordle activity to load its settings, or create a new one below."
+      );
+      return;
+    }
+
+    const selectedActivity =
+      savedActivities.find(
+        (activity) =>
+          activity.id === Number(value)
+      );
+
+    if (!selectedActivity) {
+      setActivityMessage(
+        "The selected activity could not be found."
+      );
+      return;
+    }
+
+    setActivityName(selectedActivity.name);
+
+    setDifficulty(
+      formatDifficulty(selectedActivity.difficulty)
+    );
+
+    setInstructions(
+      selectedActivity.instructions ??
+        "Select the HCE phonemes in the correct order and submit your guess."
+    );
+
+    setHint(selectedActivity.hint ?? "");
+
+    if (
+      selectedActivity.numberOfGuesses !== null &&
+      selectedActivity.numberOfGuesses > 0
+    ) {
+      setNumberOfGuesses(
+        selectedActivity.numberOfGuesses
+      );
+    }
+
+    setShowHints(selectedActivity.showHints);
+
+    if (selectedActivity.wordListId) {
+      setSelectedWordListId(
+        String(selectedActivity.wordListId)
+      );
+      setSelectedWordId("");
+    }
+
+    resetGame(
+      `Loaded activity configuration "${selectedActivity.name}" from the database.`
+    );
+
+    setActivityMessage(
+      `"${selectedActivity.name}" loaded successfully from the database.`
+    );
+  }
+
+  async function refreshSavedActivities() {
+    const response = await fetch("/api/activities");
+
+    if (!response.ok) {
+      throw new Error(
+        "Failed to refresh saved activities."
+      );
+    }
+
+    const activitiesData: DatabaseActivity[] =
+      await response.json();
+
+    setSavedActivities(
+      activitiesData.filter(
+        (activity) => activity.type === "WORDLE"
+      )
+    );
+
+    return activitiesData;
+  }
+
+  async function handleSaveActivityConfiguration() {
+    const trimmedName = activityName.trim();
+
+    if (!trimmedName) {
+      setActivityMessage(
+        "Please enter an activity name before saving."
+      );
+      return;
+    }
+
+    if (
+      !Number.isInteger(numberOfGuesses) ||
+      numberOfGuesses <= 0
+    ) {
+      setActivityMessage(
+        "Please choose a valid number of guesses."
+      );
+      return;
+    }
+
+    try {
+      setSavingActivity(true);
+
+      const payload = {
+        name: trimmedName,
+        type: "WORDLE",
+        difficulty: difficulty.toUpperCase(),
+        instructions: instructions.trim() || null,
+        hint: hint.trim() || null,
+        numberOfGuesses,
+        gridRows: null,
+        gridColumns: null,
+        showHints,
+        wordListId: selectedWordListId
+          ? Number(selectedWordListId)
+          : null,
+      };
+
+      const isEditing = Boolean(selectedActivityId);
+
+      const response = await fetch(
+        isEditing
+          ? `/api/activities/${selectedActivityId}`
+          : "/api/activities",
+        {
+          method: isEditing ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setActivityMessage(
+          data.error ??
+            "Failed to save activity configuration."
+        );
+        return;
+      }
+
+      await refreshSavedActivities();
+
+      setSelectedActivityId(String(data.id));
+      setActivityName(data.name);
+
+      setActivityMessage(
+        isEditing
+          ? `"${data.name}" updated successfully.`
+          : `"${data.name}" saved successfully.`
+      );
+
+      if (!isEditing) {
+        void recordUsageEvent(
+          "ACTIVITY_CREATED",
+          `Wordle activity "${data.name}" created.`
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Failed to save Wordle activity configuration:",
+        error
+      );
+
+      setActivityMessage(
+        "Unable to save activity configuration."
+      );
+    } finally {
+      setSavingActivity(false);
+    }
+  }
+
+  function handleNewActivityConfiguration() {
+    setSelectedActivityId("");
+    setActivityName("");
+    setActivityMessage(
+      "Enter a new activity name, choose the settings, then select Save Activity."
+    );
+  }
+
+  const filteredSavedWords =
+    selectedWordListId
+      ? savedWords.filter(
+          (word) =>
+            word.wordListId === Number(selectedWordListId)
+        )
+      : savedWords;
+
+  function handleWordListSelection(value: string) {
+    setSelectedWordListId(value);
+    setSelectedWordId("");
+
+    setDatabaseMessage(
+      value
+        ? "Word List selected. Choose a saved word."
+        : "Showing words from all Word Lists."
+    );
+  }
+
+  function handleSavedWordSelection(value: string) {
+    setSelectedWordId(value);
+
+    if (!value) {
+      return;
+    }
+
+    const selectedWord = savedWords.find(
+      (word) => word.id === Number(value)
+    );
+
+    if (!selectedWord) {
+      setDatabaseMessage(
+        "The selected word could not be found."
+      );
+      return;
+    }
+
+    const orderedPhonemes = [...selectedWord.phonemes].sort(
+      (firstPhoneme, secondPhoneme) =>
+        firstPhoneme.position - secondPhoneme.position
+    );
+
+    setEnglishWord(selectedWord.englishWord);
+    setPhonemeWord(
+      orderedPhonemes
+        .map((phoneme) => phoneme.symbol)
+        .join(" ")
+    );
+    setHint(selectedWord.hint ?? "");
+
+    if (selectedWord.wordListId) {
+      setSelectedWordListId(
+        String(selectedWord.wordListId)
+      );
+    }
+
+    resetGame(
+      `Loaded "${selectedWord.englishWord}" from the database.`
+    );
+
+    setDatabaseMessage(
+      `"${selectedWord.englishWord}" loaded successfully from the database.`
+    );
+  }
+
+  async function handleGeneratePreview() {
+    if (!phonemeWord.trim()) {
+      setPreviewMessage("Please enter a phoneme word.");
+      await recordUsageEvent(
+        "GENERATION_FAILED",
+        "Wordle generation failed: phoneme word was empty."
+      );
+      return;
+    }
+
+    if (!englishWord.trim()) {
+      setPreviewMessage("Please enter the English equivalence.");
+      await recordUsageEvent(
+        "GENERATION_FAILED",
+        "Wordle generation failed: English equivalence was empty."
+      );
+      return;
+    }
+
+    const phonemes = getPreviewPhonemes(phonemeWord);
+
+    if (phonemes.length === 0) {
+      setPreviewMessage(
+        "Please enter HCE phonemes separated by spaces. Example: θ ɪ ŋ"
+      );
+      await recordUsageEvent(
+        "GENERATION_FAILED",
+        "Wordle generation failed: no valid HCE phonemes were provided."
+      );
+      return;
+    }
+
+    resetGame(
+      `Preview generated for ${phonemeWord} — ${englishWord}.`
+    );
+
+    await recordUsageEvent(
+      "GENERATION_SUCCESS",
+      `Wordle preview generated for ${englishWord.trim()}.`
+    );
+  }
+
+  function handleKeyboardClick(
+    phoneme: string
+  ) {
+    if (gameFinished) {
+      setPreviewMessage(
+        "The preview game has finished. Select Generate Preview to restart."
+      );
+      return;
+    }
+
+    if (previewColumns === 0) {
+      setPreviewMessage(
+        "Enter a target phoneme word first."
+      );
+      return;
+    }
+
+    if (
+      submittedGuesses.length >= previewRows
+    ) {
+      setPreviewMessage(
+        "No guesses remain."
+      );
+      return;
+    }
+
+    if (
+      currentGuess.length >= previewColumns
+    ) {
+      setPreviewMessage(
+        `This word contains ${previewColumns} phonemes. Press Enter Guess or Clear.`
+      );
+      return;
+    }
+
+    const updatedGuess = [
+      ...currentGuess,
+      phoneme,
+    ];
+
+    setCurrentGuess(updatedGuess);
+
+    setPreviewMessage(
+      `${updatedGuess.length} of ${previewColumns} phonemes selected.`
+    );
+  }
+
+  function handleClear() {
+    if (gameFinished) {
+      setPreviewMessage(
+        "The preview game has finished. Select Generate Preview to restart."
+      );
+      return;
+    }
+
+    setCurrentGuess([]);
+
+    setPreviewMessage(
+      "The current guess has been cleared."
+    );
+  }
+
+  function handleEnterGuess() {
+    if (gameFinished) {
+      setPreviewMessage(
+        "The preview game has finished. Select Generate Preview to restart."
+      );
+      return;
+    }
+
+    if (previewColumns === 0) {
+      setPreviewMessage(
+        "Enter a target phoneme word first."
+      );
+      return;
+    }
+
+    if (
+      currentGuess.length !== previewColumns
+    ) {
+      setPreviewMessage(
+        `Please select exactly ${previewColumns} phonemes before submitting.`
+      );
+      return;
+    }
+
+    const submittedGuess = [
+      ...currentGuess,
+    ];
+
+    const updatedGuesses = [
+      ...submittedGuesses,
+      submittedGuess,
+    ];
+
+    setSubmittedGuesses(updatedGuesses);
+    setCurrentGuess([]);
+
+    const isCorrect =
+      submittedGuess.every(
+        (phoneme, index) =>
+          phoneme ===
+          previewPhonemes[index]
+      );
+
+    if (isCorrect) {
+      setGameFinished(true);
+
+      setPreviewMessage(
+        `Correct! ${phonemeWord} is the English word “${englishWord}”.`
+      );
+
+      return;
+    }
+
+    if (
+      updatedGuesses.length >= previewRows
+    ) {
+      setGameFinished(true);
+
+      setPreviewMessage(
+        `No guesses remain. The correct answer was ${phonemeWord} — ${englishWord}.`
+      );
+
+      return;
+    }
+
+    const guessesRemaining =
+      previewRows - updatedGuesses.length;
+
+    setPreviewMessage(
+      `Guess submitted. ${guessesRemaining} ${
+        guessesRemaining === 1
+          ? "guess"
+          : "guesses"
+      } remaining.`
+    );
+  }
+
+  function getTileStatus(
+    guess: string[],
+    columnIndex: number
+  ): TileStatus {
+    const selectedPhoneme =
+      guess[columnIndex];
+
+    if (!selectedPhoneme) {
+      return "empty";
+    }
+
+    if (
+      selectedPhoneme ===
+      previewPhonemes[columnIndex]
+    ) {
+      return "correct";
+    }
+
+    if (
+      previewPhonemes.includes(
+        selectedPhoneme
+      )
+    ) {
+      return "present";
+    }
+
+    return "incorrect";
+  }
+
+  function getTileClasses(
+    status: TileStatus
+  ): string {
+    const baseClasses =
+      "grid h-12 w-12 place-items-center rounded-md border-2 px-1 text-center text-sm font-bold transition";
+
+    if (status === "correct") {
+      return `${baseClasses} border-green-600 bg-green-600 text-white`;
+    }
+
+    if (status === "present") {
+      return `${baseClasses} border-amber-500 bg-amber-500 text-white`;
+    }
+
+    if (status === "incorrect") {
+      return `${baseClasses} border-slate-500 bg-slate-500 text-white`;
+    }
+
+    return `${baseClasses} border-slate-300 bg-white text-slate-900`;
+  }
+
+  function getTileValue(
+    rowIndex: number,
+    columnIndex: number
+  ): string {
+    if (submittedGuesses[rowIndex]) {
+      return (
+        submittedGuesses[rowIndex][
+          columnIndex
+        ] ?? ""
+      );
+    }
+
+    if (
+      rowIndex ===
+      submittedGuesses.length
+    ) {
+      return (
+        currentGuess[columnIndex] ?? ""
+      );
+    }
+
+    return "";
+  }
+
+  function handleDownloadHtml() {
+    if (!phonemeWord.trim()) {
+      setPreviewMessage(
+        "Please enter a phoneme word before downloading."
+      );
+      return;
+    }
+
+    if (!englishWord.trim()) {
+      setPreviewMessage(
+        "Please enter the English equivalence before downloading."
+      );
+      return;
+    }
+
+    if (previewPhonemes.length === 0) {
+      setPreviewMessage(
+        "Please enter valid HCE phonemes before downloading."
+      );
+      return;
+    }
+
+    const safeEnglishWord =
+      escapeHtml(englishWord);
+
+    const safeHint = escapeHtml(hint);
+    const safeInstructions =
+      escapeHtml(instructions);
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>Phoneme Wordle</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 24px;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #0f172a;
+      background: #f8fafc;
+    }
+
+    main {
+      width: min(760px, 100%);
+      margin: 0 auto;
+      padding: 28px;
+      border: 1px solid #cbd5e1;
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    h1 {
+      margin-top: 0;
+      text-align: center;
+    }
+
+    .description {
+      color: #475569;
+      text-align: center;
+    }
+
+    .badge {
+      display: block;
+      width: fit-content;
+      margin: 16px auto;
+      padding: 6px 12px;
+      border-radius: 999px;
+      color: #1d4ed8;
+      background: #dbeafe;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .grid {
+      display: grid;
+      gap: 8px;
+      margin: 28px 0;
+    }
+
+    .row {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .tile {
+      display: grid;
+      width: 56px;
+      height: 56px;
+      place-items: center;
+      border: 2px solid #cbd5e1;
+      border-radius: 8px;
+      background: white;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .correct {
+      color: white;
+      border-color: #16a34a;
+      background: #16a34a;
+    }
+
+    .present {
+      color: white;
+      border-color: #f59e0b;
+      background: #f59e0b;
+    }
+
+    .incorrect {
+      color: white;
+      border-color: #64748b;
+      background: #64748b;
+    }
+
+    .hint {
+      margin-top: 20px;
+      padding: 14px;
+      border: 1px solid #bfdbfe;
+      border-radius: 10px;
+      background: #eff6ff;
+    }
+
+    .keyboard-section {
+      margin-top: 22px;
+    }
+
+    .keyboard-section h2 {
+      margin: 0 0 10px;
+      font-size: 15px;
+    }
+
+    .keyboard {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 7px;
+    }
+
+    .phoneme-button {
+      min-width: 48px;
+      min-height: 48px;
+      padding: 7px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      color: #0f172a;
+      background: white;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .phoneme-button:hover,
+    .phoneme-button:focus-visible {
+      border-color: #2563eb;
+      background: #eff6ff;
+      outline: 3px solid #bfdbfe;
+      outline-offset: 1px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .actions button {
+      flex: 1;
+      min-height: 48px;
+      padding: 10px;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .clear {
+      border: 1px solid #cbd5e1;
+      color: #0f172a;
+      background: white;
+    }
+
+    .primary {
+      border: 1px solid #2563eb;
+      color: white;
+      background: #2563eb;
+    }
+
+    .primary:hover {
+      background: #1d4ed8;
+    }
+
+    .message {
+      margin-top: 18px;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+      background: #f1f5f9;
+      font-weight: 700;
+    }
+
+    @media (max-width: 520px) {
+      body {
+        padding: 12px;
+      }
+
+      main {
+        padding: 18px 12px;
+      }
+
+      .tile {
+        width: 48px;
+        height: 48px;
+      }
+
+      .phoneme-button {
+        min-width: 44px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1>Phoneme Wordle</h1>
+
+    <p class="description">
+      ${safeInstructions}
+    </p>
+
+    <span class="badge">
+      ${escapeHtml(difficulty)}
+    </span>
+
+    <div
+      id="grid"
+      class="grid"
+      aria-label="Phoneme Wordle grid"
+    ></div>
+
+    ${
+      showHints
+        ? `<section class="hint">
+             <strong>Hint:</strong> ${safeHint}
+           </section>`
+        : ""
+    }
+
+    <section class="keyboard-section">
+      <h2>Consonants</h2>
+
+      <div
+        id="consonant-keyboard"
+        class="keyboard"
+      ></div>
+    </section>
+
+    <section class="keyboard-section">
+      <h2>Vowels</h2>
+
+      <div
+        id="vowel-keyboard"
+        class="keyboard"
+      ></div>
+    </section>
+
+    <div class="actions">
+      <button
+        id="clear-button"
+        class="clear"
+        type="button"
+      >
+        Clear
+      </button>
+
+      <button
+        id="enter-button"
+        class="primary"
+        type="button"
+      >
+        Enter Guess
+      </button>
+    </div>
+
+    <p
+      id="message"
+      class="message"
+      role="status"
+      aria-live="polite"
+    >
+      Select your first phoneme.
+    </p>
+  </main>
+
+  <script>
+    const targetPhonemes =
+      ${JSON.stringify(previewPhonemes)};
+
+    const englishWord =
+      ${JSON.stringify(safeEnglishWord)};
+
+    const maximumGuesses =
+      ${numberOfGuesses};
+
+    const keyboardPhonemes =
+      ${JSON.stringify(phonemeKeyboard)};
+
+    let currentGuess = [];
+    let submittedGuesses = [];
+    let gameFinished = false;
+
+    const grid =
+      document.getElementById("grid");
+
+    const consonantKeyboard =
+      document.getElementById(
+        "consonant-keyboard"
+      );
+
+    const vowelKeyboard =
+      document.getElementById(
+        "vowel-keyboard"
+      );
+
+    const message =
+      document.getElementById("message");
+
+    function getTileStatus(
+      guess,
+      columnIndex
+    ) {
+      const selectedPhoneme =
+        guess[columnIndex];
+
+      if (
+        selectedPhoneme ===
+        targetPhonemes[columnIndex]
+      ) {
+        return "correct";
+      }
+
+      if (
+        targetPhonemes.includes(
+          selectedPhoneme
+        )
+      ) {
+        return "present";
+      }
+
+      return "incorrect";
+    }
+
+    function buildGrid() {
+      grid.innerHTML = "";
+
+      for (
+        let rowIndex = 0;
+        rowIndex < maximumGuesses;
+        rowIndex += 1
+      ) {
+        const row =
+          document.createElement("div");
+
+        row.className = "row";
+
+        for (
+          let columnIndex = 0;
+          columnIndex <
+          targetPhonemes.length;
+          columnIndex += 1
+        ) {
+          const tile =
+            document.createElement("span");
+
+          tile.className = "tile";
+
+          if (
+            submittedGuesses[rowIndex]
+          ) {
+            const guess =
+              submittedGuesses[rowIndex];
+
+            tile.textContent =
+              guess[columnIndex] || "";
+
+            tile.classList.add(
+              getTileStatus(
+                guess,
+                columnIndex
+              )
+            );
+          } else if (
+            rowIndex ===
+            submittedGuesses.length
+          ) {
+            tile.textContent =
+              currentGuess[columnIndex] ||
+              "";
+          }
+
+          row.appendChild(tile);
+        }
+
+        grid.appendChild(row);
+      }
+    }
+
+    function createKeyboard(
+      container,
+      group
+    ) {
+      container.innerHTML = "";
+
+      keyboardPhonemes
+        .filter(
+          (phoneme) =>
+            phoneme.group === group
+        )
+        .forEach((phoneme) => {
+          const button =
+            document.createElement(
+              "button"
+            );
+
+          button.type = "button";
+          button.className =
+            "phoneme-button";
+
+          button.textContent =
+            phoneme.symbol;
+
+          button.title =
+            phoneme.example;
+
+          button.setAttribute(
+            "aria-label",
+            phoneme.symbol +
+              ", " +
+              phoneme.example
+          );
+
+          button.addEventListener(
+            "click",
+            () => {
+              if (gameFinished) {
+                return;
+              }
+
+              if (
+                currentGuess.length >=
+                targetPhonemes.length
+              ) {
+                message.textContent =
+                  "Press Enter Guess or Clear the current row.";
+
+                return;
+              }
+
+              currentGuess.push(
+                phoneme.symbol
+              );
+
+              message.textContent =
+                currentGuess.length +
+                " of " +
+                targetPhonemes.length +
+                " phonemes selected.";
+
+              buildGrid();
+            }
+          );
+
+          container.appendChild(
+            button
+          );
+        });
+    }
+
+    function clearGuess() {
+      if (gameFinished) {
+        return;
+      }
+
+      currentGuess = [];
+
+      message.textContent =
+        "Current guess cleared.";
+
+      buildGrid();
+    }
+
+    function submitGuess() {
+      if (gameFinished) {
+        return;
+      }
+
+      if (
+        currentGuess.length !==
+        targetPhonemes.length
+      ) {
+        message.textContent =
+          "Select exactly " +
+          targetPhonemes.length +
+          " phonemes before submitting.";
+
+        return;
+      }
+
+      const guess = [
+        ...currentGuess
+      ];
+
+      submittedGuesses.push(guess);
+
+      currentGuess = [];
+
+      const correct =
+        guess.every(
+          (phoneme, index) =>
+            phoneme ===
+            targetPhonemes[index]
+        );
+
+      buildGrid();
+
+      if (correct) {
+        gameFinished = true;
+
+        message.textContent =
+          "Correct! The English word is " +
+          englishWord.toUpperCase() +
+          ".";
+
+        return;
+      }
+
+      if (
+        submittedGuesses.length >=
+        maximumGuesses
+      ) {
+        gameFinished = true;
+
+        message.textContent =
+          "No guesses remain. The correct answer was " +
+          targetPhonemes.join(" ") +
+          ", meaning " +
+          englishWord.toUpperCase() +
+          ".";
+
+        return;
+      }
+
+      const remaining =
+        maximumGuesses -
+        submittedGuesses.length;
+
+      message.textContent =
+        "Try again. " +
+        remaining +
+        " guess" +
+        (remaining === 1
+          ? ""
+          : "es") +
+        " remaining.";
+    }
+
+    document
+      .getElementById(
+        "clear-button"
+      )
+      .addEventListener(
+        "click",
+        clearGuess
+      );
+
+    document
+      .getElementById(
+        "enter-button"
+      )
+      .addEventListener(
+        "click",
+        submitGuess
+      );
+
+    buildGrid();
+
+    createKeyboard(
+      consonantKeyboard,
+      "Consonants"
+    );
+
+    createKeyboard(
+      vowelKeyboard,
+      "Vowels"
+    );
+  </script>
+</body>
+</html>`;
+
+    const file = new Blob(
+      [htmlContent],
+      {
+        type: "text/html;charset=utf-8",
+      }
+    );
+
+    const downloadUrl =
+      URL.createObjectURL(file);
+
+    const downloadLink =
+      document.createElement("a");
+
+    downloadLink.href = downloadUrl;
+
+    downloadLink.download =
+      "phoneme-wordle.html";
+
+    document.body.appendChild(
+      downloadLink
+    );
+
+    downloadLink.click();
+    downloadLink.remove();
+
+    URL.revokeObjectURL(
+      downloadUrl
+    );
+
+    setPreviewMessage(
+      "The standalone Wordle HTML file has been downloaded."
+    );
+  }
+
+  function renderKeyboardGroup(
+    title: string,
+    phonemes: Phoneme[]
+  ) {
+    return (
+      <div>
+        <p className="mb-2 text-sm font-semibold text-slate-700">
+          {title}
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          {phonemes.map((phoneme) => (
+            <button
+              key={phoneme.symbol}
+              type="button"
+              title={phoneme.example}
+              aria-label={`${phoneme.symbol}, ${phoneme.example}`}
+              onClick={() =>
+                handleKeyboardClick(
+                  phoneme.symbol
+                )
+              }
+              disabled={gameFinished}
+              className="min-w-12 rounded-lg border border-slate-300 bg-white px-3 py-2 text-center font-semibold text-slate-900 transition hover:border-blue-500 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="block text-base">
+                {phoneme.symbol}
+              </span>
+
+              <span className="block text-[10px] text-slate-500">
+                {phoneme.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Heading */}
+      <section>
+        <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-blue-700">
+          Activity Builder
+        </p>
+
+        <h1 className="text-4xl font-bold text-slate-900">
+          Phoneme Wordle Builder
+        </h1>
+
+        <p className="mt-4 max-w-3xl text-lg text-slate-600">
+          Create a phoneme-based Wordle activity,
+          preview the result, and prepare it for
+          download as a standalone HTML file.
+        </p>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-2">
+        {/* SETTINGS */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-semibold text-slate-900">
+            Activity Settings
+          </h2>
+
+          <p className="mt-2 text-slate-600">
+            Configure the target phoneme word and
+            classroom settings.
+          </p>
+
+          <div className="mt-6 space-y-5">
+            {/* Database activity configuration */}
+            <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
+              <h3 className="font-semibold text-slate-900">
+                Activity Configuration
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-600">
+                Load, create or update Wordle settings stored in the database.
+              </p>
+
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label
+                    htmlFor="saved-activity"
+                    className="mb-2 block text-sm font-medium text-slate-900"
+                  >
+                    Saved Activity
+                  </label>
+
+                  <select
+                    id="saved-activity"
+                    value={selectedActivityId}
+                    onChange={(event) =>
+                      handleSavedActivitySelection(
+                        event.target.value
+                      )
+                    }
+                    disabled={databaseLoading}
+                    className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
+                  >
+                    <option value="">
+                      New Activity Configuration
+                    </option>
+
+                    {savedActivities.map((activity) => (
+                      <option
+                        key={activity.id}
+                        value={activity.id}
+                      >
+                        {activity.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="activity-name"
+                    className="mb-2 block text-sm font-medium text-slate-900"
+                  >
+                    Activity Name
+                  </label>
+
+                  <input
+                    id="activity-name"
+                    type="text"
+                    value={activityName}
+                    onChange={(event) =>
+                      setActivityName(
+                        event.target.value
+                      )
+                    }
+                    placeholder="e.g. Animal Words Wordle"
+                    className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={handleSaveActivityConfiguration}
+                    disabled={savingActivity}
+                    className="flex-1 rounded-lg bg-indigo-600 px-4 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {savingActivity
+                      ? "Saving..."
+                      : selectedActivityId
+                        ? "Update Activity"
+                        : "Save Activity"}
+                  </button>
+
+                  {selectedActivityId && (
+                    <button
+                      type="button"
+                      onClick={handleNewActivityConfiguration}
+                      className="flex-1 rounded-lg border border-indigo-300 bg-white px-4 py-3 font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                    >
+                      New Activity
+                    </button>
+                  )}
+                </div>
+
+                <p
+                  className="text-sm text-indigo-700"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {databaseLoading
+                    ? "Loading activity configurations..."
+                    : activityMessage}
+                </p>
+              </div>
+            </div>
+
+            {/* Database word selection */}
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <h3 className="font-semibold text-slate-900">
+                Load Saved Word
+              </h3>
+
+              <p className="mt-1 text-sm text-slate-600">
+                Select a Word List and word stored in the database.
+              </p>
+
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label
+                    htmlFor="saved-word-list"
+                    className="mb-2 block text-sm font-medium text-slate-900"
+                  >
+                    Word List
+                  </label>
+
+                  <select
+                    id="saved-word-list"
+                    value={selectedWordListId}
+                    onChange={(event) =>
+                      handleWordListSelection(
+                        event.target.value
+                      )
+                    }
+                    disabled={databaseLoading}
+                    className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
+                  >
+                    <option value="">
+                      All Word Lists
+                    </option>
+
+                    {wordLists.map((wordList) => (
+                      <option
+                        key={wordList.id}
+                        value={wordList.id}
+                      >
+                        {wordList.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="saved-word"
+                    className="mb-2 block text-sm font-medium text-slate-900"
+                  >
+                    Saved Word
+                  </label>
+
+                  <select
+                    id="saved-word"
+                    value={selectedWordId}
+                    onChange={(event) =>
+                      handleSavedWordSelection(
+                        event.target.value
+                      )
+                    }
+                    disabled={
+                      databaseLoading ||
+                      filteredSavedWords.length === 0
+                    }
+                    className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
+                  >
+                    <option value="">
+                      Select a Saved Word
+                    </option>
+
+                    {filteredSavedWords.map((word) => (
+                      <option
+                        key={word.id}
+                        value={word.id}
+                      >
+                        {word.englishWord}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <p
+                  className="text-sm text-blue-700"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {databaseLoading
+                    ? "Loading database..."
+                    : databaseMessage}
+                </p>
+              </div>
+            </div>
+
+            {/* Phoneme word */}
+            <div>
+              <label
+                htmlFor="phoneme-word"
+                className="mb-2 block font-medium text-slate-900"
+              >
+                Phoneme Word
+              </label>
+
+              <input
+                id="phoneme-word"
+                type="text"
+                value={phonemeWord}
+                onChange={(event) =>
+                  handlePhonemeWordChange(
+                    event.target.value
+                  )
+                }
+                placeholder="θ ɪ ŋ"
+                className="w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+
+              <p className="mt-2 text-sm text-slate-500">
+                Enter each HCE phoneme separated by a
+                space. Example: θ ɪ ŋ
+              </p>
+            </div>
+
+            {/* English word */}
+            <div>
+              <label
+                htmlFor="english-word"
+                className="mb-2 block font-medium text-slate-900"
+              >
+                English Equivalence
+              </label>
+
+              <input
+                id="english-word"
+                type="text"
+                value={englishWord}
+                onChange={(event) =>
+                  setEnglishWord(
+                    event.target.value
+                  )
+                }
+                placeholder="Thing"
+                className="w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+
+            {/* Instructions */}
+            <div>
+              <label
+                htmlFor="instructions"
+                className="mb-2 block font-medium text-slate-900"
+              >
+                Instructions
+              </label>
+
+              <textarea
+                id="instructions"
+                value={instructions}
+                onChange={(event) =>
+                  setInstructions(event.target.value)
+                }
+                rows={3}
+                className="w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+
+            {/* Difficulty */}
+            <div>
+              <label
+                htmlFor="difficulty"
+                className="mb-2 block font-medium text-slate-900"
+              >
+                Difficulty
+              </label>
+
+              <select
+                id="difficulty"
+                value={difficulty}
+                onChange={(event) =>
+                  setDifficulty(
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="Easy">
+                  Easy
+                </option>
+
+                <option value="Medium">
+                  Medium
+                </option>
+
+                <option value="Hard">
+                  Hard
+                </option>
+              </select>
+            </div>
+
+            {/* Hint */}
+            <div>
+              <label
+                htmlFor="hint"
+                className="mb-2 block font-medium text-slate-900"
+              >
+                Hint
+              </label>
+
+              <input
+                id="hint"
+                type="text"
+                value={hint}
+                onChange={(event) =>
+                  setHint(event.target.value)
+                }
+                placeholder="TH as in thin"
+                className="w-full rounded-lg border border-slate-300 p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+
+            {/* Guesses */}
+            <div>
+              <label
+                htmlFor="number-of-guesses"
+                className="mb-2 block font-medium text-slate-900"
+              >
+                Number of Guesses
+              </label>
+
+              <select
+                id="number-of-guesses"
+                value={numberOfGuesses}
+                onChange={(event) =>
+                  handleNumberOfGuessesChange(
+                    Number(
+                      event.target.value
+                    )
+                  )
+                }
+                className="w-full rounded-lg border border-slate-300 bg-white p-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value={4}>
+                  4 Guesses
+                </option>
+
+                <option value={5}>
+                  5 Guesses
+                </option>
+
+                <option value={6}>
+                  6 Guesses
+                </option>
+              </select>
+            </div>
+
+            {/* Hints */}
+            <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-4">
+              <input
+                type="checkbox"
+                checked={showHints}
+                onChange={(event) =>
+                  setShowHints(
+                    event.target.checked
+                  )
+                }
+                className="mt-1 h-4 w-4"
+              />
+
+              <span>
+                <span className="block font-medium text-slate-900">
+                  Show Phoneme Hints
+                </span>
+
+                <span className="block text-sm text-slate-500">
+                  Display phoneme-to-English sound
+                  guidance in the activity.
+                </span>
+              </span>
+            </label>
+
+            {/* Generate */}
+            <button
+              type="button"
+              onClick={handleGeneratePreview}
+              className="w-full rounded-lg bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2"
+            >
+              Generate Preview
+            </button>
+
+            <p
+              className="text-center text-sm text-slate-500"
+              role="status"
+              aria-live="polite"
+            >
+              {previewMessage}
+            </p>
+          </div>
+        </div>
+
+        {/* PREVIEW */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-900">
+                Live Preview
+              </h2>
+
+              <p className="mt-2 text-slate-600">
+                Preview of the phoneme Wordle classroom
+                activity.
+              </p>
+            </div>
+
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">
+              {difficulty}
+            </span>
+          </div>
+
+          <div className="mt-8 rounded-xl bg-slate-50 p-5">
+            <div className="text-center">
+              <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
+                Phoneme Wordle
+              </p>
+
+              <h3 className="mt-2 text-xl font-bold text-slate-900">
+                Select the Correct Phonemes
+              </h3>
+
+              <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
+                {instructions}
+              </p>
+
+              <p className="mt-2 text-sm text-slate-500">
+                {previewColumns} phoneme
+                {previewColumns === 1
+                  ? ""
+                  : "s"}{" "}
+                · {numberOfGuesses} guesses
+              </p>
+            </div>
+
+            {/* Wordle grid */}
+            <div
+              className="mt-6 space-y-2 overflow-x-auto pb-2"
+              aria-label="Wordle preview grid"
+            >
+              {Array.from({
+                length: previewRows,
+              }).map((_, rowIndex) => (
+                <div
+                  key={rowIndex}
+                  className="flex min-w-max justify-center gap-2"
+                >
+                  {Array.from({
+                    length:
+                      previewColumns,
+                  }).map(
+                    (_, columnIndex) => {
+                      const guess =
+                        submittedGuesses[
+                          rowIndex
+                        ];
+
+                      const status =
+                        guess
+                          ? getTileStatus(
+                              guess,
+                              columnIndex
+                            )
+                          : "empty";
+
+                      return (
+                        <div
+                          key={
+                            columnIndex
+                          }
+                          className={getTileClasses(
+                            status
+                          )}
+                        >
+                          {getTileValue(
+                            rowIndex,
+                            columnIndex
+                          )}
+                        </div>
+                      );
+                    }
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Colour legend */}
+            <div className="mt-5 flex flex-wrap justify-center gap-4 text-xs font-medium text-slate-600">
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 rounded bg-green-600" />
+                Correct Position
+              </span>
+
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 rounded bg-amber-500" />
+                Included Elsewhere
+              </span>
+
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 rounded bg-slate-500" />
+                Not Included
+              </span>
+            </div>
+
+            {/* Answer */}
+            {gameFinished && (
+              <div className="mt-6 rounded-lg border border-green-200 bg-green-50 p-4 text-center">
+                <p className="font-semibold text-green-800">
+                  Answer:{" "}
+                  {previewPhonemes.join(
+                    " "
+                  )}
+                </p>
+
+                <p className="mt-1 text-sm text-green-700">
+                  English Equivalence:{" "}
+                  {englishWord}
+                </p>
+              </div>
+            )}
+
+            {/* Hint */}
+            {showHints && (
+              <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-4">
+                <h4 className="font-semibold text-slate-900">
+                  Phoneme Hint
+                </h4>
+
+                <p className="mt-1 text-sm text-slate-600">
+                  {hint.trim() ||
+                    "No hint entered."}
+                </p>
+              </div>
+            )}
+
+            {/* Keyboard */}
+            <div className="mt-6 space-y-5">
+              <p className="text-sm font-semibold text-slate-900">
+                HCE Phoneme Keyboard
+              </p>
+
+              {renderKeyboardGroup(
+                "Consonants",
+                consonants
+              )}
+
+              {renderKeyboardGroup(
+                "Vowels",
+                vowels
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={handleClear}
+                disabled={
+                  gameFinished ||
+                  currentGuess.length === 0
+                }
+                className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-900 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Clear
+              </button>
+
+              <button
+                type="button"
+                onClick={handleEnterGuess}
+                disabled={gameFinished}
+                className="flex-1 rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Enter Guess
+              </button>
+            </div>
+          </div>
+
+          {/* Download */}
+          <button
+            type="button"
+            onClick={handleDownloadHtml}
+            className="mt-6 w-full rounded-lg border border-blue-600 px-4 py-3 font-semibold text-blue-700 transition hover:bg-blue-50"
+          >
+            Generate and Download HTML
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}

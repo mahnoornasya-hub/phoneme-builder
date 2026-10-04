@@ -13,6 +13,10 @@
 # testing
 /coverage
 
+# Playwright generated test output
+/playwright-report/
+/test-results/
+
 # next.js
 /.next/
 /out/
@@ -30,7 +34,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
 
 # vercel
@@ -39,3 +43,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# generated Prisma files
+/lib/generated/prisma
+
+# local SQLite database
+*.db
+*.db-journal
